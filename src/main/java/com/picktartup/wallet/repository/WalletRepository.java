@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import javax.swing.text.html.Option;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +26,8 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
 
     // 지갑 주소를 기준으로 지갑 정보 삭제
     void deleteByAddress(String address);
+
+    String findAddressByWalletId(Long walletId);
 
     // 잔액 업데이트
     @Modifying

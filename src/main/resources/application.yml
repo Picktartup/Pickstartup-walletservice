@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Binance Smart Chain (BSC) Network URL
+bsc:
+  network:
+    url: https://data-seed-prebsc-1-s1.binance.org:8545/
+
+
+jwt:
+  secret: "aP9nZ7yQ1pK4xM6lT2vR5wU8dE1jF3rG"  # ??? ??? ?? ?
