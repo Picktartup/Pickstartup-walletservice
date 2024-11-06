@@ -1,4 +1,4 @@
-package com.pickstartup.wallet;
+package com.picktartup.wallet;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
