@@ -26,6 +26,13 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 .env
+src/main/java/com/.DS_Store
+src/main/java/.DS_Store
+src/main/.DS_Store
+src/.DS_Store
+
+
+
 
 ### NetBeans ###
 /nbproject/private/

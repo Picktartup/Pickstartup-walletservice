@@ -7,6 +7,7 @@ import com.picktartup.wallet.utils.JwtUtil;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -52,7 +53,7 @@ public class WalletService {
     public String createWallet(String password, String walletDirectory) throws Exception {
         // 지갑 파일 생성 및 주소 얻기
         String walletFileName = WalletUtils.generateFullNewWalletFile(password, new File(walletDirectory));
-        Credentials credentials = WalletUtils.loadCredentials(password, walletDirectory + "/" + walletFileName);
+        Credentials credentials = WalletUtils.loadCredentials(password, walletDirectory + "\\" + walletFileName);
         String walletAddress = credentials.getAddress();
 
         // 지갑 주소를 DB에 저장
@@ -83,6 +84,7 @@ public class WalletService {
      * @param address 삭제할 지갑의 주소
      * @return 삭제 여부 (true: 삭제 성공, false: 지갑이 존재하지 않음)
      */
+    @Transactional
     public boolean deleteWallet(String address) {
         Optional<Wallet> wallet = walletRepository.findByAddress(address);
 
@@ -120,14 +122,13 @@ public class WalletService {
         }
 
         // JWT에서 사용자 ID 추출
-        String userId = jwtUtil.extractUserId(token);
+        Long userId = Long.valueOf(jwtUtil.extractUserId(token));
 
-        Optional<Long> walletId = userRepository.findWalletIdByUserId(userId);
-        // 사용자 ID로 지갑 정보 조회
-        String wallet = walletRepository.findAddressByWalletId(walletId.orElse(null));
+        Optional<String> walletaddress = userRepository.findWalletAddressByUserId(userId);
+
 
         // 지갑 주소 반환
-        return Optional.ofNullable(wallet);
+        return walletaddress;
     }
 
 }
