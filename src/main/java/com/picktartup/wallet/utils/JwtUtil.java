@@ -1,11 +1,17 @@
 package com.picktartup.wallet.utils;
 
+import static javax.crypto.Cipher.SECRET_KEY;
+
+import com.picktartup.wallet.entity.Users;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.SignatureException;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
+import java.util.HashMap;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +22,26 @@ public class JwtUtil {
 
   @Value("${jwt.secret}") // application.properties에서 jwt.secret 값을 로드
   private String secret;
+
+  private final long EXPIRATION_TIME = 3600000;
+
+  public String generateToken(Users user) {
+    Map<String, Object> claims = new HashMap<>();
+    claims.put("userId", user.getUserId());
+    claims.put("email", user.getEmail());
+    claims.put("role", user.getRole().toString());
+    claims.put("walletId", user.getWallet().getWalletId());
+    claims.put("walletAddress", user.getWallet().getAddress());
+
+    return Jwts.builder()
+        .setClaims(claims)
+        .setSubject(user.getUsername())
+        .setIssuedAt(new Date(System.currentTimeMillis()))
+        .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+        .signWith(SignatureAlgorithm.HS256, String.valueOf(SECRET_KEY))
+        .compact();
+  }
+
 
   /**
    * JWT에서 모든 Claims(내용)를 추출

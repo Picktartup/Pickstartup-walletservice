@@ -1,5 +1,7 @@
 package com.picktartup.wallet.service;
 
+import com.picktartup.wallet.dto.CreateWalletRequest;
+import com.picktartup.wallet.dto.WalletRequest;
 import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.repository.UserRepository;
 import com.picktartup.wallet.repository.WalletRepository;
@@ -12,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
+import org.web3j.crypto.Keys;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
@@ -50,10 +53,10 @@ public class WalletService {
      * @return 지갑 주소
      * @throws Exception 지갑 생성 오류
      */
-    public String createWallet(String password, String walletDirectory) throws Exception {
+    public String createWallet(CreateWalletRequest request) throws Exception {
         // 지갑 파일 생성 및 주소 얻기
-        String walletFileName = WalletUtils.generateFullNewWalletFile(password, new File(walletDirectory));
-        Credentials credentials = WalletUtils.loadCredentials(password, walletDirectory + "\\" + walletFileName);
+        String walletFileName = WalletUtils.generateFullNewWalletFile(request.getPassword(), new File(request.getWalletDirectory()));
+        Credentials credentials = WalletUtils.loadCredentials(request.getPassword(), request.getWalletDirectory() + "\\" + walletFileName);
         String walletAddress = credentials.getAddress();
 
         // 지갑 주소를 DB에 저장
@@ -74,6 +77,7 @@ public class WalletService {
      * @throws Exception 잔액 조회 오류
      */
     public BigDecimal getWalletBalance(String address) throws Exception {
+
         EthGetBalance ethGetBalance = web3j.ethGetBalance(address, DefaultBlockParameterName.LATEST).send();
         BigInteger weiBalance = ethGetBalance.getBalance();
         return Convert.fromWei(weiBalance.toString(), Convert.Unit.ETHER);
@@ -85,7 +89,8 @@ public class WalletService {
      * @return 삭제 여부 (true: 삭제 성공, false: 지갑이 존재하지 않음)
      */
     @Transactional
-    public boolean deleteWallet(String address) {
+    public boolean deleteWallet(WalletRequest walletRequest) {
+        String address = walletRequest.getAddress();
         Optional<Wallet> wallet = walletRepository.findByAddress(address);
 
         if (wallet.isPresent()) {

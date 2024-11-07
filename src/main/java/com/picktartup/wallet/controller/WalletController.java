@@ -1,7 +1,9 @@
 package com.picktartup.wallet.controller;
 
+import com.picktartup.wallet.dto.CreateWalletRequest;
+import com.picktartup.wallet.dto.WalletRequest;
+import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.service.WalletService;
-import jakarta.transaction.Transactional;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -25,16 +27,14 @@ public class WalletController {
 
     /**
      * 새 지갑을 생성하고 주소를 반환하는 API
-     * @param password 지갑 비밀번호
-     * @param walletDirectory 사용자가 지정한 지갑 파일 저장 경로
+     * @param createWalletRequest password,walletDirectory
      * @return 생성된 지갑 주소
      */
     @PostMapping("/create")
     public ResponseEntity<Map<String, String>> createWallet(
-            @RequestParam String password,
-            @RequestParam String walletDirectory) {
+            @RequestBody CreateWalletRequest createWalletRequest) {
         try {
-            String address = walletService.createWallet(password, walletDirectory);
+            String address = walletService.createWallet(createWalletRequest);
             Map<String, String> response = new HashMap<>();
             response.put("address", address);
             return ResponseEntity.ok(response);
@@ -48,9 +48,10 @@ public class WalletController {
      * @param address 지갑 주소
      * @return 잔액 (BNB)
      */
-    @GetMapping("/balance")
-    public ResponseEntity<Map<String, Object>> getWalletBalance(@RequestParam String address) {
+    @PostMapping("/balance")
+    public ResponseEntity<Map<String, Object>> getWalletBalance(@RequestBody WalletRequest walletRequest) {
         try {
+            String address = walletRequest.getAddress();
             BigDecimal balance = walletService.getWalletBalance(address);
             Map<String, Object> response = new HashMap<>();
             response.put("address", address);
@@ -67,8 +68,8 @@ public class WalletController {
      * @return 삭제 결과
      */
     @DeleteMapping("/delete")
-    public ResponseEntity<Map<String, String>> deleteWallet(@RequestParam String address) {
-        boolean isDeleted = walletService.deleteWallet(address);
+    public ResponseEntity<Map<String, String>> deleteWallet(@RequestBody WalletRequest deleteWalletRequest) {
+        boolean isDeleted = walletService.deleteWallet(deleteWalletRequest);
         Map<String, String> response = new HashMap<>();
 
         if (isDeleted) {
