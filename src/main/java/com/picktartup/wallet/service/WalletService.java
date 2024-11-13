@@ -1,9 +1,7 @@
 package com.picktartup.wallet.service;
 
 import com.picktartup.wallet.entity.Wallet;
-import com.picktartup.wallet.repository.UserRepository;
 import com.picktartup.wallet.repository.WalletRepository;
-import com.picktartup.wallet.utils.JwtUtil;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
@@ -29,17 +27,14 @@ public class WalletService {
 
     private final Web3j web3j;
     private final WalletRepository walletRepository;
-    private final UserRepository userRepository;
-    private final JwtUtil jwtUtil;
+//    private final JwtUtil jwtUtil;
 
     @Value("${bsc.network.url}")
     private String bscNetworkUrl;
 
     @Autowired
-    public WalletService(WalletRepository walletRepository,UserRepository userRepository,JwtUtil jwtUtil, @Value("${bsc.network.url}") String bscNetworkUrl) {
+    public WalletService(WalletRepository walletRepository, @Value("${bsc.network.url}") String bscNetworkUrl) {
         this.walletRepository = walletRepository;
-        this.userRepository = userRepository;
-        this.jwtUtil = jwtUtil;
         this.web3j = Web3j.build(new HttpService(bscNetworkUrl));
     }
 
@@ -96,39 +91,38 @@ public class WalletService {
         }
     }
 
-    /**
-     * JWT 유효성 검증
-     */
-    private boolean validateToken(String token) {
-        try {
-            jwtUtil.extractAllClaims(token);
-            return !jwtUtil.isTokenExpired(token);
-        } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException |
-                 IllegalArgumentException e) {
-            System.out.println("Invalid JWT: " + e.getMessage());
-        }
-        return false;
-    }
+//    /**
+//     * JWT 유효성 검증
+//     */
+//    private boolean validateToken(String token) {
+//        try {
+//            jwtUtil.extractAllClaims(token);
+//            return !jwtUtil.isTokenExpired(token);
+//        } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException |
+//                 IllegalArgumentException e) {
+//            System.out.println("Invalid JWT: " + e.getMessage());
+//        }
+//        return false;
+//    }
 
     /**
      * JWT를 검증하고, 해당 사용자의 지갑 주소를 반환
      * @param token JWT 토큰
      * @return Optional로 래핑된 지갑 주소 (유효하지 않거나 사용자가 없는 경우 빈 Optional 반환)
      */
-    public Optional<String> getWalletAddress(String token) {
-        // JWT 유효성 검사
-        if (!jwtUtil.validateToken(token)) {
-            return Optional.empty();
-        }
-
-        // JWT에서 사용자 ID 추출
-        Long userId = Long.valueOf(jwtUtil.extractUserId(token));
-
-        Optional<String> walletaddress = userRepository.findWalletAddressByUserId(userId);
-
-
-        // 지갑 주소 반환
-        return walletaddress;
-    }
+//    public Optional<String> getWalletAddress(String token) {
+//        // JWT 유효성 검사
+//        if (!jwtUtil.validateToken(token)) {
+//            return Optional.empty();
+//        }
+//
+//        // JWT에서 사용자 ID 추출
+//        Long userId = Long.valueOf(jwtUtil.extractUserId(token));
+//
+//        Optional<String> walletaddress = userRepository.findWalletAddressByUserId(userId);
+//
+//        // 지갑 주소 반환
+//        return walletaddress;
+//    }
 
 }

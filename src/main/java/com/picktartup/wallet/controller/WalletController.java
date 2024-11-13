@@ -80,22 +80,22 @@ public class WalletController {
         }
     }
 
-    /**
-     * JWT 토큰을 통해 투자자의 지갑 주소 조회
-     */
-    @GetMapping("/address")
-    public ResponseEntity<String> getWalletAddress(@RequestHeader("Authorization") String token) {
-        // Bearer 토큰에서 JWT 추출
-        String jwtToken = token.replace("Bearer ", "");
-
-        // WalletService를 통해 지갑 주소 조회
-        Optional<String> walletAddress = walletService.getWalletAddress(jwtToken);
-
-        // 결과에 따라 응답 반환
-        return walletAddress
-            .map(address -> ResponseEntity.ok().body(address))
-            .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid JWT token or wallet address not found"));
-    }
+//    /**
+//     * JWT 토큰을 통해 투자자의 지갑 주소 조회
+//     */
+//    @GetMapping("/address")
+//    public ResponseEntity<String> getWalletAddress(@RequestHeader("Authorization") String token) {
+//        // Bearer 토큰에서 JWT 추출
+//        String jwtToken = token.replace("Bearer ", "");
+//
+//        // WalletService를 통해 지갑 주소 조회
+//        Optional<String> walletAddress = walletService.getWalletAddress(jwtToken);
+//
+//        // 결과에 따라 응답 반환
+//        return walletAddress
+//            .map(address -> ResponseEntity.ok().body(address))
+//            .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid JWT token or wallet address not found"));
+//    }
 
 }
 
