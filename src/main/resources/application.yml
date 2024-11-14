@@ -17,6 +17,6 @@ bsc:
   network:
     url: https://data-seed-prebsc-1-s1.binance.org:8545/
 
-
-jwt:
-  secret: "aP9nZ7yQ1pK4xM6lT2vR5wU8dE1jF3rG"  # ??? ??? ?? ?
+wallet:
+  keystore:
+    directory: ${user.home}/keystore
