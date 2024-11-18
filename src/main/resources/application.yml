@@ -20,3 +20,9 @@ bsc:
 wallet:
   keystore:
     directory: ${user.home}/keystore
+
+contract:
+  token:
+    address: ${CONTRACT_TOKEN_ADDRESS}
+  admin:
+    private-key: ${CONTRACT_ADMIN_PRIVATEKEY}
