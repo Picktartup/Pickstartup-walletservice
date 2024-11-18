@@ -1,4 +1,4 @@
-package com.picktartup.wallet.dto;
+package com.picktartup.wallet.dto.request;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

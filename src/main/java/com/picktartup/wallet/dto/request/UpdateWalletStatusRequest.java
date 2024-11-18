@@ -1,4 +1,4 @@
-package com.picktartup.wallet.dto;
+package com.picktartup.wallet.dto.request;
 
 import com.picktartup.wallet.entity.WalletStatus;
 import jakarta.validation.constraints.NotNull;

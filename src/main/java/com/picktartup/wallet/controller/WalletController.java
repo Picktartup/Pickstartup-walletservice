@@ -1,21 +1,17 @@
 package com.picktartup.wallet.controller;
 
-import com.picktartup.wallet.dto.*;
+import com.picktartup.wallet.dto.request.*;
+import com.picktartup.wallet.dto.response.BaseResponse;
+import com.picktartup.wallet.dto.response.TransactionResponse;
+import com.picktartup.wallet.dto.response.WalletResponse;
+import com.picktartup.wallet.service.TokenService;
 import com.picktartup.wallet.service.WalletService;
-import jakarta.transaction.Transactional;
-import java.util.Optional;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -24,8 +20,9 @@ import java.util.Map;
 public class WalletController {
 
     private final WalletService walletService;
+    private final TokenService tokenService;
 
-    // 지갑 생성
+    // 지갑 생성 
     @PostMapping
     public ResponseEntity<BaseResponse<WalletResponse>> createWallet(
             @RequestBody @Valid CreateWalletRequest request
@@ -63,6 +60,26 @@ public class WalletController {
         log.info("잔고 업데이트 요청 - address: {}", address);
         walletService.updateBalance(address);
         return ResponseEntity.ok(BaseResponse.success("잔고가 성공적으로 업데이트되었습니다."));
+    }
+
+    // 특정 지갑의 잔고 조회(DB 조회 O, 실제 네트워크 X )
+
+
+    // PG사 결제 완료 웹훅
+    @PostMapping("/payment/callback")
+    public ResponseEntity<TransactionResponse> handlePaymentCallback(
+            @RequestBody PaymentCallbackRequest request) {
+        log.info("결제 완료 웹훅 수신 - 주문번호: {}", request.getOrderId());
+
+        PaymentCompletedEvent event = PaymentCompletedEvent.builder()
+                .orderId(request.getOrderId())
+                .userId(request .getUserId())
+                .amount(request.getAmount())
+                .paymentId(request.getPaymentId())
+                .build();
+
+        TransactionResponse result = tokenService.mintTokenFromPayment(event);
+        return ResponseEntity.ok(result);
     }
 
 }

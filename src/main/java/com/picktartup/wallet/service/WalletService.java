@@ -1,9 +1,9 @@
 package com.picktartup.wallet.service;
 
-import com.picktartup.wallet.dto.BalanceResponse;
-import com.picktartup.wallet.dto.CreateWalletRequest;
-import com.picktartup.wallet.dto.UpdateWalletStatusRequest;
-import com.picktartup.wallet.dto.WalletResponse;
+import com.picktartup.wallet.dto.response.BalanceResponse;
+import com.picktartup.wallet.dto.request.CreateWalletRequest;
+import com.picktartup.wallet.dto.request.UpdateWalletStatusRequest;
+import com.picktartup.wallet.dto.response.WalletResponse;
 import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.entity.WalletStatus;
 import com.picktartup.wallet.exception.BalanceUpdateException;
