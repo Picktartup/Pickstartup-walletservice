@@ -24,5 +24,7 @@ wallet:
 contract:
   token:
     address: ${CONTRACT_TOKEN_ADDRESS}
+  funding:
+    address: ${CONTRACT_FUNDING_ADDRESS}
   admin:
     private-key: ${CONTRACT_ADMIN_PRIVATEKEY}
