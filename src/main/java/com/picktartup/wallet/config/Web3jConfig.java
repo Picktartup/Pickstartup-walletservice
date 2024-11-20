@@ -8,6 +8,9 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.gas.ContractGasProvider;
 import org.web3j.tx.gas.DefaultGasProvider;
+import org.web3j.tx.gas.StaticGasProvider;
+
+import java.math.BigInteger;
 
 @Configuration
 public class Web3jConfig {
@@ -16,7 +19,10 @@ public class Web3jConfig {
     private String BSC_NETWORK_URL;
 
     @Value("${contract.token.address}")
-    private String contractAddress;
+    private String tokenContractAddress;
+
+    @Value("${contract.funding.address}")
+    private String fundingContractAddress;
 
     @Value("${contract.admin.private-key}")
     private String adminPrivateKey;
@@ -30,8 +36,13 @@ public class Web3jConfig {
     }
 
     @Bean
-    public String contractAddress() {
-        return contractAddress;
+    public String tokenContractAddress() {
+        return tokenContractAddress;
+    }
+
+    @Bean
+    public String fundingContractAddress() {
+        return fundingContractAddress;
     }
 
     @Bean

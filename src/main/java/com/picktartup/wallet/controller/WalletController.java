@@ -22,7 +22,7 @@ public class WalletController {
     private final WalletService walletService;
     private final TokenService tokenService;
 
-    // 지갑 생성 
+    // 지갑 생성
     @PostMapping
     public ResponseEntity<BaseResponse<WalletResponse>> createWallet(
             @RequestBody @Valid CreateWalletRequest request
