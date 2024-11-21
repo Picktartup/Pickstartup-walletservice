@@ -4,6 +4,7 @@ import com.picktartup.wallet.dto.request.CreateCampaignRequest;
 import com.picktartup.wallet.dto.request.EmergencyWithdrawRequest;
 import com.picktartup.wallet.dto.request.InvestRequest;
 import com.picktartup.wallet.dto.response.*;
+import com.picktartup.wallet.dto.response.BaseResponse;
 import com.picktartup.wallet.service.StartupFundingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,8 +23,7 @@ public class StartupFundingController {
     // 1. 캠페인 생성
     @PostMapping("/campaigns")
     public ResponseEntity<BaseResponse<CampaignResponse>> createCampaign(
-            @RequestBody @Valid CreateCampaignRequest request
-    ) {
+            @RequestBody @Valid CreateCampaignRequest request) {
         log.info("캠페인 생성 요청 - name: {}, targetAmount: {}",
                 request.getName(), request.getTargetAmount());
         return ResponseEntity.ok(

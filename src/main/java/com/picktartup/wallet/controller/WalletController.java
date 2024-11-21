@@ -25,8 +25,7 @@ public class WalletController {
     // 지갑 생성
     @PostMapping
     public ResponseEntity<BaseResponse<WalletResponse>> createWallet(
-            @RequestBody @Valid CreateWalletRequest request
-    ) {
+            @RequestBody @Valid CreateWalletRequest request) {
         log.info("지갑 생성 요청 - userId: {}", request.getUserId());
         return ResponseEntity.ok(
                 BaseResponse.success(walletService.createWallet(request))
@@ -36,8 +35,7 @@ public class WalletController {
     // 사용자의 지갑 정보 조회
     @GetMapping("/users/{userId}")
     public ResponseEntity<BaseResponse<WalletResponse>> getWalletByUserId(
-            @PathVariable Long userId
-    ) {
+            @PathVariable Long userId) {
         log.info("지갑 정보 조회 - userId: {}", userId);
         return ResponseEntity.ok(
                 BaseResponse.success(walletService.getWalletByUserId(userId))
@@ -81,6 +79,5 @@ public class WalletController {
         TransactionResponse result = tokenService.mintTokenFromPayment(event);
         return ResponseEntity.ok(result);
     }
-
 }
 

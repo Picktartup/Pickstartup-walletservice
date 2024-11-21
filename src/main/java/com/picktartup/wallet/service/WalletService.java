@@ -6,9 +6,7 @@ import com.picktartup.wallet.dto.request.UpdateWalletStatusRequest;
 import com.picktartup.wallet.dto.response.WalletResponse;
 import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.entity.WalletStatus;
-import com.picktartup.wallet.exception.BalanceUpdateException;
-import com.picktartup.wallet.exception.WalletCreationException;
-import com.picktartup.wallet.exception.WalletNotFoundException;
+import com.picktartup.wallet.exception.*;
 import com.picktartup.wallet.repository.WalletRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
@@ -70,7 +68,7 @@ public class WalletService {
             // 1. 동일한 userId로 이미 지갑이 존재하는지 확인
             Optional<Wallet> existingWallet = walletRepository.findByUserId(request.getUserId());
             if (existingWallet.isPresent()) {
-                throw new WalletCreationException("이 사용자는 이미 지갑을 가지고 있습니다.");
+                throw new BusinessException(ErrorCode.WALLET_ALREADY_EXISTS);
             }
 
             // 2. 랜덤 비밀번호 생성 (또는 사용자로부터 받기)
@@ -110,9 +108,11 @@ public class WalletService {
                     .updatedAt(wallet.getUpdatedAt())
                     .build();
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("지갑 생성 실패: {}", e.getMessage());
-            throw new WalletCreationException("지갑 생성에 실패했습니다.");
+            throw new BusinessException(ErrorCode.WALLET_CREATION_FAILED, e.getMessage());
         }
     }
 
@@ -125,7 +125,8 @@ public class WalletService {
     // 사용자 ID로 지갑 조회
     public WalletResponse getWalletByUserId(Long userId) {
         Wallet wallet = walletRepository.findByUserId(userId)
-                .orElseThrow(() -> new WalletNotFoundException("사용자의 지갑을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
+
         return WalletResponse.builder()
                 .walletId(wallet.getWalletId())
                 .userId(wallet.getUserId())
@@ -140,7 +141,7 @@ public class WalletService {
     // DB에 저장된 지갑 잔고 조회
     public BalanceResponse getBalanceFromDB(String address) {
         Wallet wallet = walletRepository.findByAddress(address)
-                .orElseThrow(() -> new WalletNotFoundException("지갑을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
         return BalanceResponse.builder()
                 .address(address)
                 .balance(wallet.getBalance())
@@ -151,7 +152,7 @@ public class WalletService {
     @Transactional
     public WalletResponse updateWalletStatus(Long walletId, UpdateWalletStatusRequest request) {
         Wallet wallet = walletRepository.findById(walletId)
-                .orElseThrow(() -> new WalletNotFoundException("지갑을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
 
         wallet.setStatus(request.getStatus());
         walletRepository.save(wallet);
@@ -171,12 +172,14 @@ public class WalletService {
         try {
             BigInteger balance = getTokenBalance(address);
             Wallet wallet = walletRepository.findByAddress(address)
-                    .orElseThrow(() -> new WalletNotFoundException("지갑을 찾을 수 없습니다."));
+                    .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
             wallet.updateBalance(new BigDecimal(balance));
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("잔고 업데이트 실패: {}", e.getMessage());
-            throw new BalanceUpdateException("잔고 업데이트에 실패했습니다.");
+            throw new BusinessException(ErrorCode.BALANCE_UPDATE_FAILED, e.getMessage());
         }
     }
 
