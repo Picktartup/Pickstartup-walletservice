@@ -1,7 +1,7 @@
 package com.picktartup.wallet.service;
 
-import com.picktartup.wallet.dto.request.PaymentCompletedEvent;
-import com.picktartup.wallet.dto.response.TransactionResponse;
+import com.picktartup.wallet.dto.PaymentDto;
+import com.picktartup.wallet.dto.TransactionDto;
 import com.picktartup.wallet.entity.TokenTransaction;
 import com.picktartup.wallet.entity.TransactionStatus;
 import com.picktartup.wallet.entity.TransactionType;
@@ -42,7 +42,7 @@ public class TokenService {
     private final ContractGasProvider gasProvider;
 
     @Transactional
-    public TransactionResponse mintTokenFromPayment(PaymentCompletedEvent request) {
+    public TransactionDto.Response mintTokenFromPayment(PaymentDto.CompletedEvent request) {
         log.info("토큰 발행 시작 - 주문번호: {}, 금액: {}", request.getOrderId(), request.getAmount());
 
         // 1. 사용자 지갑 조회
@@ -102,7 +102,7 @@ public class TokenService {
     }
 
     private TokenTransaction createTokenTransaction(
-            PaymentCompletedEvent request,
+            PaymentDto.CompletedEvent request,
             Wallet userWallet,
             BigDecimal tokenAmount) {
         return TokenTransaction.builder()
@@ -152,11 +152,11 @@ public class TokenService {
         tokenTransactionRepository.save(transaction);
     }
 
-    private TransactionResponse createSuccessResponse(
+    private TransactionDto.Response createSuccessResponse(
             String txHash,
             String toAddress,
             BigDecimal amount) {
-        return TransactionResponse.builder()
+        return TransactionDto.Response.builder()
                 .transactionHash(txHash)
                 .from("0x0000000000000000000000000000000000000000")
                 .to(toAddress)

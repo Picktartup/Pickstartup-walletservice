@@ -2,10 +2,8 @@ package com.picktartup.wallet.service;
 
 import com.picktartup.wallet.contracts.PickenToken;
 import com.picktartup.wallet.contracts.StartupFunding;
-import com.picktartup.wallet.dto.request.CreateCampaignRequest;
-import com.picktartup.wallet.dto.request.EmergencyWithdrawRequest;
-import com.picktartup.wallet.dto.request.InvestRequest;
-import com.picktartup.wallet.dto.response.*;
+import com.picktartup.wallet.dto.CampaignDto;
+import com.picktartup.wallet.dto.TokenDto;
 import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.exception.BusinessException;
 import com.picktartup.wallet.exception.ErrorCode;
@@ -20,7 +18,9 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.tuples.generated.Tuple3;
 import org.web3j.tx.gas.ContractGasProvider;
+import org.web3j.utils.Convert;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 
 
@@ -38,7 +38,7 @@ public class StartupFundingService {
     private final ContractGasProvider gasProvider;
 
     @Transactional
-    public CampaignResponse createCampaign(CreateCampaignRequest request) {
+    public CampaignDto.Create.Response createCampaign(CampaignDto.Create.Request request) {
         log.info("캠페인 생성 시작 - adminUserId: {}, name: {}", request.getAdminUserId(), request.getName());
 
         validateAdminAccess(request.getAdminUserId());
@@ -58,7 +58,7 @@ public class StartupFundingService {
             log.info("캠페인 생성 완료 - campaignId: {}, txHash: {}",
                     campaignId, receipt.getTransactionHash());
 
-            return CampaignResponse.builder()
+            return CampaignDto.Create.Response.builder()
                     .campaignId(campaignId.longValue())
                     .name(request.getName())
                     .description(request.getDescription())
@@ -77,7 +77,7 @@ public class StartupFundingService {
     }
 
     @Transactional
-    public InvestmentResponse invest(Long campaignId, InvestRequest request) {
+    public CampaignDto.Investment.Response invest(Long campaignId, CampaignDto.Investment.Request request) {
         log.info("투자 시작 - userId: {}, campaignId: {}, amount: {}",
                 request.getUserId(), campaignId, request.getAmount());
 
@@ -103,7 +103,7 @@ public class StartupFundingService {
             log.info("투자 완료 - userId: {}, campaignId: {}, txHash: {}",
                     request.getUserId(), campaignId, receipt.getTransactionHash());
 
-            return InvestmentResponse.builder()
+            return CampaignDto.Investment.Response.builder()
                     .campaignId(campaignId)
                     .investorAddress(investorWallet.getAddress())
                     .amount(request.getAmount())
@@ -122,7 +122,7 @@ public class StartupFundingService {
         }
     }
 
-    public CampaignDetailResponse getCampaignDetails(Long campaignId) {
+    public CampaignDto.Detail.Response getCampaignDetails(Long campaignId) {
         log.info("캠페인 상세 조회 시작 - campaignId: {}", campaignId);
 
         try {
@@ -134,7 +134,7 @@ public class StartupFundingService {
             log.info("캠페인 상세 조회 완료 - campaignId: {}, currentBalance: {}",
                     campaignId, balance.component2());
 
-            return CampaignDetailResponse.builder()
+            return CampaignDto.Detail.Response.builder()
                     .campaignId(campaignId)
                     .targetAmount(balance.component1().longValue())
                     .currentBalance(balance.component2().longValue())
@@ -151,7 +151,7 @@ public class StartupFundingService {
         }
     }
 
-    public InvestorStatusResponse getInvestorStatus(Long campaignId, Long userId) {
+    public CampaignDto.Investor.StatusResponse getInvestorStatus(Long campaignId, Long userId) {
         log.info("투자자 상태 조회 시작 - campaignId: {}, userId: {}", campaignId, userId);
 
         Wallet investorWallet = findAndValidateInvestorWallet(userId);
@@ -168,7 +168,7 @@ public class StartupFundingService {
             log.info("투자자 상태 조회 완료 - campaignId: {}, userId: {}, investedAmount: {}",
                     campaignId, userId, status.component1());
 
-            return InvestorStatusResponse.builder()
+            return CampaignDto.Investor.StatusResponse.builder()
                     .campaignId(campaignId)
                     .investorAddress(investorWallet.getAddress())
                     .investedAmount(status.component1().longValue())
@@ -187,7 +187,7 @@ public class StartupFundingService {
         }
     }
 
-    public InvestmentAmountResponse getInvestmentAmount(Long campaignId, String address) {
+    public CampaignDto.Investment.AmountResponse getInvestmentAmount(Long campaignId, String address) {
         log.info("투자 금액 조회 시작 - campaignId: {}, address: {}", campaignId, address);
 
         try {
@@ -201,7 +201,7 @@ public class StartupFundingService {
             log.info("투자 금액 조회 완료 - campaignId: {}, address: {}, amount: {}",
                     campaignId, address, amount);
 
-            return InvestmentAmountResponse.builder()
+            return CampaignDto.Investment.AmountResponse.builder()
                     .campaignId(campaignId)
                     .investorAddress(address)
                     .amount(amount.longValue())
@@ -218,17 +218,21 @@ public class StartupFundingService {
         }
     }
 
-    public TokenBalanceResponse getTotalHeldTokens() {
+    public TokenDto.Balance.Response getTotalHeldTokens() {
         log.info("총 보유 토큰 조회 시작");
 
         try {
             StartupFunding contract = loadFundingContract(createReadOnlyCredentials());
             BigInteger balance = contract.getTotalHeldTokens().send();
 
+            // BigInteger를 BigDecimal로 변환 (Wei to Ether)
+            BigDecimal balanceInEther = Convert.fromWei(new BigDecimal(balance), Convert.Unit.ETHER);
+
             log.info("총 보유 토큰 조회 완료 - balance: {}", balance);
 
-            return TokenBalanceResponse.builder()
-                    .balance(balance.longValue())
+            return TokenDto.Balance.Response.builder()
+                    .address(fundingContractAddress)
+                    .balance(balanceInEther)
                     .build();
 
         } catch (Exception e) {
@@ -242,9 +246,9 @@ public class StartupFundingService {
     }
 
     @Transactional
-    public EmergencyWithdrawResponse emergencyWithdraw(
+    public CampaignDto.Emergency.Response emergencyWithdraw(
             Long campaignId,
-            EmergencyWithdrawRequest request
+            CampaignDto.Emergency.Request request
     ) {
         log.info("긴급 출금 시작 - campaignId: {}, adminUserId: {}",
                 campaignId, request.getAdminUserId());
@@ -262,7 +266,7 @@ public class StartupFundingService {
             log.info("긴급 출금 완료 - campaignId: {}, toAddress: {}, txHash: {}",
                     campaignId, request.getToAddress(), receipt.getTransactionHash());
 
-            return EmergencyWithdrawResponse.builder()
+            return CampaignDto.Emergency.Response.builder()
                     .campaignId(campaignId)
                     .toAddress(request.getToAddress())
                     .transactionHash(receipt.getTransactionHash())

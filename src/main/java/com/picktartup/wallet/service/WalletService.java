@@ -1,9 +1,7 @@
 package com.picktartup.wallet.service;
 
+import com.picktartup.wallet.dto.WalletDto;
 import com.picktartup.wallet.dto.response.BalanceResponse;
-import com.picktartup.wallet.dto.request.CreateWalletRequest;
-import com.picktartup.wallet.dto.request.UpdateWalletStatusRequest;
-import com.picktartup.wallet.dto.response.WalletResponse;
 import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.entity.WalletStatus;
 import com.picktartup.wallet.exception.*;
@@ -63,7 +61,7 @@ public class WalletService {
     }
 
     @Transactional
-    public WalletResponse createWallet(CreateWalletRequest request) {
+    public WalletDto.Create.Response createWallet(WalletDto.Create.Request request) {
         try {
             // 1. 동일한 userId로 이미 지갑이 존재하는지 확인
             Optional<Wallet> existingWallet = walletRepository.findByUserId(request.getUserId());
@@ -96,8 +94,7 @@ public class WalletService {
                     .build());
 
             // 6. 응답 생성 (키스토어 파일명과 임시 비밀번호 반환)
-            return WalletResponse.builder()
-                    .walletId(wallet.getWalletId())
+            return WalletDto.Create.Response.builder()
                     .userId(wallet.getUserId())
                     .address(wallet.getAddress())
                     .keystoreFilename(wallet.getKeystoreFilename())
@@ -123,12 +120,11 @@ public class WalletService {
 
 
     // 사용자 ID로 지갑 조회
-    public WalletResponse getWalletByUserId(Long userId) {
+    public WalletDto.Create.Response getWalletByUserId(Long userId) {
         Wallet wallet = walletRepository.findByUserId(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
 
-        return WalletResponse.builder()
-                .walletId(wallet.getWalletId())
+        return WalletDto.Create.Response.builder()
                 .userId(wallet.getUserId())
                 .address(wallet.getAddress())
                 .balance(wallet.getBalance())
@@ -150,15 +146,14 @@ public class WalletService {
 
     // 지갑 상태 업데이트 (DB에만 상태 변경)
     @Transactional
-    public WalletResponse updateWalletStatus(Long walletId, UpdateWalletStatusRequest request) {
+    public WalletDto.Create.Response updateWalletStatus(Long walletId, WalletDto.UpdateStatus.Request request) {
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
 
         wallet.setStatus(request.getStatus());
         walletRepository.save(wallet);
 
-        return WalletResponse.builder()
-                .walletId(wallet.getWalletId())
+        return WalletDto.Create.Response.builder()
                 .userId(wallet.getUserId())
                 .address(wallet.getAddress())
                 .balance(wallet.getBalance())
