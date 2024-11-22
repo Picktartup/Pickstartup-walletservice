@@ -1,7 +1,7 @@
 package com.picktartup.wallet.service;
 
+import com.picktartup.wallet.dto.TokenDto;
 import com.picktartup.wallet.dto.WalletDto;
-import com.picktartup.wallet.dto.response.BalanceResponse;
 import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.entity.WalletStatus;
 import com.picktartup.wallet.exception.*;
@@ -135,10 +135,10 @@ public class WalletService {
     }
 
     // DB에 저장된 지갑 잔고 조회
-    public BalanceResponse getBalanceFromDB(String address) {
+    public TokenDto.Balance.Response getBalanceFromDB(String address) {
         Wallet wallet = walletRepository.findByAddress(address)
                 .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
-        return BalanceResponse.builder()
+        return TokenDto.Balance.Response.builder()
                 .address(address)
                 .balance(wallet.getBalance())
                 .build();

@@ -16,7 +16,8 @@ public class WalletDto {
     public static class Create {
 
         @Getter
-        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class Request {
             @NotNull(message = "사용자 ID는 필수입니다.")
             private Long userId;

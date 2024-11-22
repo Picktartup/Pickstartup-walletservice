@@ -37,6 +37,7 @@ public class StartupFundingController {
     ) {
         log.info("투자 요청 - campaignId: {}, amount: {}, userId: {}",
                 campaignId, request.getAmount(), request.getUserId());
+
         return ResponseEntity.ok(
                 BaseResponse.success(
                         startupFundingService.invest(campaignId, request)
@@ -71,19 +72,7 @@ public class StartupFundingController {
         );
     }
 
-    // 5. 특정 투자자의 투자 금액 조회
-    @GetMapping("/campaigns/{campaignId}/investments/{address}")
-    public ResponseEntity<BaseResponse<CampaignDto.Investment.AmountResponse>> getInvestmentAmount(
-            @PathVariable Long campaignId,
-            @PathVariable String address
-    ) {
-        log.info("투자 금액 조회 - campaignId: {}, address: {}", campaignId, address);
-        return ResponseEntity.ok(
-                BaseResponse.success(
-                        startupFundingService.getInvestmentAmount(campaignId, address)
-                )
-        );
-    }
+    // 5. 특정 투자자의 투자 금액 조회- 제거 (중복된 api 가 있음)
 
     // 6. 컨트랙트의 총 토큰 보유량 확인
     @GetMapping("/total-held-tokens")
