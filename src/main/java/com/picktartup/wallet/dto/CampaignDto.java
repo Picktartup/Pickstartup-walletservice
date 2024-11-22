@@ -1,15 +1,19 @@
 package com.picktartup.wallet.dto;
 
+import com.picktartup.wallet.utils.TokenUtils;
 import jakarta.validation.constraints.*;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
+import java.math.BigInteger;
 import java.time.LocalDateTime;
 
 public class CampaignDto {
 
     public static class Create {
         @Getter
+        @Setter
         @Builder
         public static class Request {
             @NotNull(message = "캠페인 이름은 필수입니다")
@@ -31,6 +35,11 @@ public class CampaignDto {
             @Positive(message = "캠페인 기간은 0보다 커야 합니다")
             @Max(value = 365, message = "캠페인 기간은 최대 365일입니다")
             private Integer durationInDays;
+
+            // Wei 단위로 변환하는 메서드
+            public BigInteger getTargetAmountInWei() {
+                return TokenUtils.toWei(targetAmount);
+            }
         }
 
         @Getter
@@ -78,6 +87,7 @@ public class CampaignDto {
 
     public static class Investment {
         @Getter
+        @Setter
         @Builder
         public static class Request {
             @NotNull(message = "사용자 ID는 필수입니다")
@@ -87,7 +97,12 @@ public class CampaignDto {
             private String walletPassword;
 
             @Positive(message = "투자 금액은 0보다 커야 합니다")
-            private Long amount;
+            private Long amount; //Picken 단위로 입력
+
+            // Wei 단위로 변환하는 메서드
+            public BigInteger getAmountInWei() {
+                return TokenUtils.toWei(amount);
+            }
         }
 
         @Getter

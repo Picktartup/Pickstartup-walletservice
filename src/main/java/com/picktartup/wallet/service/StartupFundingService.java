@@ -8,6 +8,7 @@ import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.exception.BusinessException;
 import com.picktartup.wallet.exception.ErrorCode;
 import com.picktartup.wallet.repository.WalletRepository;
+import com.picktartup.wallet.utils.TokenUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,7 +47,7 @@ public class StartupFundingService {
     // Campaign 생성
     @Transactional
     public CampaignDto.Create.Response createCampaign(CampaignDto.Create.Request request) {
-        log.info("캠페인 생성 시작 - name: {}, targetAmount: {}",
+        log.info("캠페인 생성 시작 - name: {}, targetAmount: {} PICKEN",
                 request.getName(), request.getTargetAmount());
 
         validateAdminAccess(request.getAdminUserId());
@@ -54,14 +55,21 @@ public class StartupFundingService {
         try {
             StartupFunding contract = loadFundingContract(adminCredentials);
 
-            // duration을 초 단위로 변환 (request에서는 일 단위로 받았다고 가정)
+            // PICKEN -> Wei 단위로 변환
+            BigInteger targetAmountInWei = TokenUtils.toWei(request.getTargetAmount());
+
+            // duration을 초 단위로 변환 (request에서는 일 단위로 받음)
             long durationInSeconds = request.getDurationInDays() * 24 * 60 * 60;
+
+            // 컨트랙트 호출 전 로깅
+            log.debug("컨트랙트 호출 파라미터 - targetAmount: {} Wei, duration: {} seconds",
+                    targetAmountInWei, durationInSeconds);
 
             TransactionReceipt receipt = contract.createCampaign(
                     request.getName(),
                     request.getDescription(),
                     request.getStartupWallet(),
-                    BigInteger.valueOf(request.getTargetAmount()),
+                    targetAmountInWei,  // Wei 단위로 변환된 값 사용
                     BigInteger.valueOf(durationInSeconds)
             ).send();
 
@@ -74,14 +82,17 @@ public class StartupFundingService {
 
             StartupFunding.CampaignCreatedEventResponse event = events.get(0);
 
-            log.info("캠페인 생성 완료 - campaignId: {}, txHash: {}",
-                    event.campaignId, receipt.getTransactionHash());
+            // Wei -> PICKEN 단위로 변환하여 로깅
+            log.info("캠페인 생성 완료 - campaignId: {}, targetAmount: {} PICKEN, txHash: {}",
+                    event.campaignId,
+                    TokenUtils.fromWei(event.targetAmount),
+                    receipt.getTransactionHash());
 
             return CampaignDto.Create.Response.builder()
                     .campaignId(event.campaignId.longValue())
                     .name(request.getName())
                     .description(request.getDescription())
-                    .targetAmount(request.getTargetAmount())
+                    .targetAmount(request.getTargetAmount())  // 원래 PICKEN 단위 유지
                     .startTime(Instant.ofEpochSecond(event.startTime.longValue())
                             .atZone(ZoneId.systemDefault())
                             .toLocalDateTime())
@@ -92,7 +103,8 @@ public class StartupFundingService {
                     .build();
 
         } catch (Exception e) {
-            log.error("캠페인 생성 실패", e);
+            log.error("캠페인 생성 실패 - name: {}, targetAmount: {} PICKEN",
+                    request.getName(), request.getTargetAmount(), e);
             throw new BusinessException(ErrorCode.CAMPAIGN_CREATION_FAILED, e.getMessage());
         }
     }
@@ -103,7 +115,7 @@ public class StartupFundingService {
             Long campaignId,
             CampaignDto.Investment.Request request
     ) {
-        log.info("투자 시작 - userId: {}, campaignId: {}, amount: {}",
+        log.info("투자 시작 - userId: {}, campaignId: {}, amount: {} PICKEN",
                 request.getUserId(), campaignId, request.getAmount());
 
         // 캠페인 상태 확인
@@ -117,35 +129,60 @@ public class StartupFundingService {
         );
 
         try {
-            validateAndApproveTokens(investorCredentials, request.getAmount());
+            // PICKEN -> Wei 단위로 변환
+            BigInteger amountInWei = TokenUtils.toWei(request.getAmount());
+
+            // approve 전 로깅
+            log.debug("토큰 승인 요청 - amount: {} Wei", amountInWei);
+
+            validateAndApproveTokens(investorCredentials, amountInWei);
 
             StartupFunding contract = loadFundingContract(investorCredentials);
+
+            // 투자 실행 전 로깅
+            log.debug("투자 실행 - campaignId: {}, amount: {} Wei",
+                    campaignId, amountInWei);
+
             TransactionReceipt receipt = executeInvestment(
                     contract,
                     campaignId,
-                    request.getAmount()
+                    amountInWei  // Wei 단위로 변환된 값 전달
             );
 
-            StartupFunding.InvestmentMadeEventResponse event =
-                    contract.getInvestmentMadeEvents(receipt).get(0);
+            List<StartupFunding.InvestmentMadeEventResponse> events =
+                    contract.getInvestmentMadeEvents(receipt);
 
-            log.info("투자 완료 - userId: {}, campaignId: {}, txHash: {}",
-                    request.getUserId(), campaignId, receipt.getTransactionHash());
+            if (events.isEmpty()) {
+                throw new BusinessException(ErrorCode.INVESTMENT_FAILED, "Investment event not found");
+            }
+
+            StartupFunding.InvestmentMadeEventResponse event = events.get(0);
+
+            // Wei -> PICKEN 변환하여 로깅 및 응답
+            Long totalRaisedPICKEN = TokenUtils.fromWei(event.totalRaised);
+
+            log.info("투자 완료 - userId: {}, campaignId: {}, amount: {} PICKEN, totalRaised: {} PICKEN, txHash: {}",
+                    request.getUserId(),
+                    campaignId,
+                    request.getAmount(),
+                    totalRaisedPICKEN,
+                    receipt.getTransactionHash());
 
             return CampaignDto.Investment.Response.builder()
                     .campaignId(campaignId)
                     .investorAddress(investorWallet.getAddress())
-                    .amount(request.getAmount())
-                    .totalRaised(event.totalRaised.longValue())
+                    .amount(request.getAmount())  // 원래 PICKEN 단위 유지
+                    .totalRaised(totalRaisedPICKEN)  // Wei에서 PICKEN으로 변환
                     .transactionHash(receipt.getTransactionHash())
                     .build();
 
         } catch (Exception e) {
-            log.error("투자 실패 - userId: {}, campaignId: {}",
-                    request.getUserId(), campaignId, e);
+            log.error("투자 실패 - userId: {}, campaignId: {}, amount: {} PICKEN",
+                    request.getUserId(), campaignId, request.getAmount(), e);
             throw new BusinessException(ErrorCode.INVESTMENT_FAILED, e.getMessage());
         }
     }
+
 
     // 캠페인 상태 조회
     public CampaignDto.Status.Response getCampaignStatus(Long campaignId) {
@@ -401,8 +438,8 @@ public class StartupFundingService {
         }
     }
 
-    private void validateAndApproveTokens(Credentials credentials, Long amount) {
-        if (!checkAndApproveTokens(credentials, amount)) {
+    private void validateAndApproveTokens(Credentials credentials, BigInteger amountInWei) {
+        if (!checkAndApproveTokens(credentials, amountInWei)) {
             throw new BusinessException(ErrorCode.TOKEN_APPROVAL_FAILED);
         }
     }
@@ -410,10 +447,11 @@ public class StartupFundingService {
     private TransactionReceipt executeInvestment(
             StartupFunding contract,
             Long campaignId,
-            Long amount) throws Exception {
+            BigInteger request
+    ) throws Exception {
         return contract.invest(
                 BigInteger.valueOf(campaignId),
-                BigInteger.valueOf(amount)
+                request
         ).send();
     }
 
@@ -446,14 +484,20 @@ public class StartupFundingService {
         return true;
     }
 
-    private boolean checkAndApproveTokens(Credentials credentials, Long amount) {
+    private boolean checkAndApproveTokens(Credentials credentials, BigInteger amount) {
         try {
             PickenToken tokenContract = loadTokenContract(credentials);
 
             // 1. 토큰 잔액 검증
             BigInteger balance = tokenContract.balanceOf(credentials.getAddress()).send();
-            if (balance.compareTo(BigInteger.valueOf(amount)) < 0) {
-                throw new BusinessException(ErrorCode.INSUFFICIENT_TOKEN_BALANCE);
+            if (balance.compareTo(amount) < 0) {
+                throw new BusinessException(
+                        ErrorCode.INSUFFICIENT_TOKEN_BALANCE,
+                        String.format("필요한 토큰: %d PICKEN, 현재 잔액: %d PICKEN",
+                                amount,  // 원본 PICKEN 단위
+                                TokenUtils.fromWei(balance)  // Wei -> PICKEN 변환
+                        )
+                );
             }
 
             // 2. 현재 승인액 확인
@@ -463,7 +507,7 @@ public class StartupFundingService {
             ).send();
 
             // 3. 필요한 경우에만 승인 진행
-            if (allowance.compareTo(BigInteger.valueOf(amount)) < 0) {
+            if (allowance.compareTo(amount) < 0) {
                 return handleTokenApproval(tokenContract, allowance, amount, credentials);
             }
 
@@ -484,7 +528,7 @@ public class StartupFundingService {
     private boolean handleTokenApproval(
             PickenToken tokenContract,
             BigInteger currentAllowance,
-            Long requiredAmount,
+            BigInteger requiredAmount,
             Credentials credentials
     ) throws Exception {
         // 기존 승인액 초기화
@@ -505,7 +549,7 @@ public class StartupFundingService {
         // 새로운 승인
         TransactionReceipt approvalReceipt = tokenContract.approve(
                 fundingContractAddress,
-                BigInteger.valueOf(requiredAmount)
+                requiredAmount
         ).send();
 
         if (!approvalReceipt.isStatusOK()) {
@@ -521,7 +565,7 @@ public class StartupFundingService {
                 fundingContractAddress
         ).send();
 
-        if (newAllowance.compareTo(BigInteger.valueOf(requiredAmount)) < 0) {
+        if (newAllowance.compareTo(requiredAmount) < 0) {
             throw new BusinessException(
                     ErrorCode.TOKEN_APPROVAL_FAILED,
                     "토큰 승인 확인 실패"
