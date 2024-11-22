@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TokenTransaction extends BaseTimeEntity {
+public class TokenTransaction{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
