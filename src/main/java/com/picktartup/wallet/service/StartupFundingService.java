@@ -17,11 +17,17 @@ import org.web3j.crypto.WalletFile;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.tuples.generated.Tuple3;
+import org.web3j.tuples.generated.Tuple4;
 import org.web3j.tx.gas.ContractGasProvider;
 import org.web3j.utils.Convert;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
 
 
 @Slf4j
@@ -37,49 +43,72 @@ public class StartupFundingService {
     private final KeystoreService keystoreService;
     private final ContractGasProvider gasProvider;
 
+    // Campaign 생성
     @Transactional
     public CampaignDto.Create.Response createCampaign(CampaignDto.Create.Request request) {
-        log.info("캠페인 생성 시작 - adminUserId: {}, name: {}", request.getAdminUserId(), request.getName());
+        log.info("캠페인 생성 시작 - name: {}, targetAmount: {}",
+                request.getName(), request.getTargetAmount());
 
         validateAdminAccess(request.getAdminUserId());
 
         try {
             StartupFunding contract = loadFundingContract(adminCredentials);
 
+            // duration을 초 단위로 변환 (request에서는 일 단위로 받았다고 가정)
+            long durationInSeconds = request.getDurationInDays() * 24 * 60 * 60;
+
             TransactionReceipt receipt = contract.createCampaign(
                     request.getName(),
                     request.getDescription(),
                     request.getStartupWallet(),
-                    BigInteger.valueOf(request.getTargetAmount())
+                    BigInteger.valueOf(request.getTargetAmount()),
+                    BigInteger.valueOf(durationInSeconds)
             ).send();
 
-            BigInteger campaignId = extractCampaignId(contract, receipt);
+            List<StartupFunding.CampaignCreatedEventResponse> events =
+                    contract.getCampaignCreatedEvents(receipt);
+
+            if (events.isEmpty()) {
+                throw new BusinessException(ErrorCode.CAMPAIGN_CREATION_FAILED);
+            }
+
+            StartupFunding.CampaignCreatedEventResponse event = events.get(0);
 
             log.info("캠페인 생성 완료 - campaignId: {}, txHash: {}",
-                    campaignId, receipt.getTransactionHash());
+                    event.campaignId, receipt.getTransactionHash());
 
             return CampaignDto.Create.Response.builder()
-                    .campaignId(campaignId.longValue())
+                    .campaignId(event.campaignId.longValue())
                     .name(request.getName())
                     .description(request.getDescription())
                     .targetAmount(request.getTargetAmount())
+                    .startTime(Instant.ofEpochSecond(event.startTime.longValue())
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime())
+                    .endTime(Instant.ofEpochSecond(event.endTime.longValue())
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime())
                     .transactionHash(receipt.getTransactionHash())
                     .build();
 
         } catch (Exception e) {
-            log.error("캠페인 생성 실패 - adminUserId: {}", request.getAdminUserId(), e);
-            throw new BusinessException(
-                    ErrorCode.CAMPAIGN_CREATION_FAILED,
-                    "캠페인 생성 중 오류가 발생했습니다: " + e.getMessage(),
-                    e
-            );
+            log.error("캠페인 생성 실패", e);
+            throw new BusinessException(ErrorCode.CAMPAIGN_CREATION_FAILED, e.getMessage());
         }
     }
 
+    // 투자
     @Transactional
-    public CampaignDto.Investment.Response invest(Long campaignId, CampaignDto.Investment.Request request) {
+    public CampaignDto.Investment.Response invest(
+            Long campaignId,
+            CampaignDto.Investment.Request request
+    ) {
         log.info("투자 시작 - userId: {}, campaignId: {}, amount: {}",
                 request.getUserId(), campaignId, request.getAmount());
+
+        // 캠페인 상태 확인
+        CampaignDto.Status.Response campaignStatus = getCampaignStatus(campaignId);
+        validateCampaignStatus(campaignStatus);
 
         Wallet investorWallet = findAndValidateInvestorWallet(request.getUserId());
         Credentials investorCredentials = loadInvestorCredentials(
@@ -114,12 +143,100 @@ public class StartupFundingService {
         } catch (Exception e) {
             log.error("투자 실패 - userId: {}, campaignId: {}",
                     request.getUserId(), campaignId, e);
-            throw new BusinessException(
-                    ErrorCode.INVESTMENT_FAILED,
-                    "투자 처리 중 오류가 발생했습니다: " + e.getMessage(),
-                    e
-            );
+            throw new BusinessException(ErrorCode.INVESTMENT_FAILED, e.getMessage());
         }
+    }
+
+    // 캠페인 상태 조회
+    public CampaignDto.Status.Response getCampaignStatus(Long campaignId) {
+        try {
+            StartupFunding contract = loadFundingContract(createReadOnlyCredentials());
+
+            Tuple4<BigInteger, BigInteger, BigInteger, BigInteger> status =
+                    contract.getCampaignStatus(BigInteger.valueOf(campaignId)).send();
+
+            return CampaignDto.Status.Response.builder()
+                    .campaignId(campaignId)
+                    .status(convertToCampaignStatus(status.component1().intValue()))
+                    .startTime(Instant.ofEpochSecond(status.component2().longValue())
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime())
+                    .endTime(Instant.ofEpochSecond(status.component3().longValue())
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime())
+                    .timeRemaining(String.valueOf(Duration.ofSeconds(status.component4().longValue())))
+                    .build();
+
+        } catch (Exception e) {
+            log.error("캠페인 상태 조회 실패 - campaignId: {}", campaignId, e);
+            throw new BusinessException(ErrorCode.CAMPAIGN_STATUS_CHECK_FAILED, e.getMessage());
+        }
+    }
+
+    // 환불 처리
+    @Transactional
+    public CampaignDto.Refund.Response refund(Long campaignId, Long userId) {
+        log.info("환불 시작 - userId: {}, campaignId: {}", userId, campaignId);
+
+        Wallet investorWallet = findAndValidateInvestorWallet(userId);
+
+        try {
+            StartupFunding contract = loadFundingContract(
+                    loadInvestorCredentials(investorWallet, "")
+            );
+
+            TransactionReceipt receipt = contract.refund(
+                    BigInteger.valueOf(campaignId)
+            ).send();
+
+            List<StartupFunding.RefundProcessedEventResponse> events =
+                    contract.getRefundProcessedEvents(receipt);
+
+            if (events.isEmpty()) {
+                throw new BusinessException(ErrorCode.REFUND_FAILED);
+            }
+
+            StartupFunding.RefundProcessedEventResponse event = events.get(0);
+
+            log.info("환불 완료 - userId: {}, campaignId: {}, amount: {}",
+                    userId, campaignId, event.amount);
+
+            return CampaignDto.Refund.Response.builder()
+                    .campaignId(campaignId)
+                    .investorAddress(investorWallet.getAddress())
+                    .amount(event.amount.longValue())
+                    .transactionHash(receipt.getTransactionHash())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("환불 실패 - userId: {}, campaignId: {}", userId, campaignId, e);
+            throw new BusinessException(ErrorCode.REFUND_FAILED, e.getMessage());
+        }
+    }
+
+    // Private helper methods
+    private void validateCampaignStatus(CampaignDto.Status.Response status) {
+        if (status.getStatus() != CampaignDto.CampaignStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.INVALID_CAMPAIGN_STATUS);
+        }
+
+        if (LocalDateTime.now().isBefore(status.getStartTime())) {
+            throw new BusinessException(ErrorCode.CAMPAIGN_NOT_STARTED);
+        }
+
+        if (LocalDateTime.now().isAfter(status.getEndTime())) {
+            throw new BusinessException(ErrorCode.CAMPAIGN_ENDED);
+        }
+    }
+
+    private CampaignDto.CampaignStatus convertToCampaignStatus(int statusCode) {
+        return switch (statusCode) {
+            case 0 -> CampaignDto.CampaignStatus.ACTIVE;
+            case 1 -> CampaignDto.CampaignStatus.SUCCESSFUL;
+            case 2 -> CampaignDto.CampaignStatus.FAILED;
+            case 3 -> CampaignDto.CampaignStatus.CANCELLED;
+            default -> throw new BusinessException(ErrorCode.INVALID_CAMPAIGN_STATUS);
+        };
     }
 
     public CampaignDto.Detail.Response getCampaignDetails(Long campaignId) {
@@ -187,36 +304,6 @@ public class StartupFundingService {
         }
     }
 
-    public CampaignDto.Investment.AmountResponse getInvestmentAmount(Long campaignId, String address) {
-        log.info("투자 금액 조회 시작 - campaignId: {}, address: {}", campaignId, address);
-
-        try {
-            StartupFunding contract = loadFundingContract(createReadOnlyCredentials());
-
-            BigInteger amount = contract.getInvestmentAmount(
-                    BigInteger.valueOf(campaignId),
-                    address
-            ).send();
-
-            log.info("투자 금액 조회 완료 - campaignId: {}, address: {}, amount: {}",
-                    campaignId, address, amount);
-
-            return CampaignDto.Investment.AmountResponse.builder()
-                    .campaignId(campaignId)
-                    .investorAddress(address)
-                    .amount(amount.longValue())
-                    .build();
-
-        } catch (Exception e) {
-            log.error("투자 금액 조회 실패 - campaignId: {}, address: {}", campaignId, address, e);
-            throw new BusinessException(
-                    ErrorCode.BALANCE_CHECK_FAILED,
-                    String.format("투자 금액 조회 중 오류 발생 - campaignId: %d, address: %s",
-                            campaignId, address),
-                    e
-            );
-        }
-    }
 
     public TokenDto.Balance.Response getTotalHeldTokens() {
         log.info("총 보유 토큰 조회 시작");

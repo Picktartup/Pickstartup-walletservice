@@ -1,10 +1,10 @@
 package com.picktartup.wallet.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.*;
 import lombok.Builder;
 import lombok.Getter;
+
+import java.time.LocalDateTime;
 
 public class CampaignDto {
 
@@ -12,16 +12,25 @@ public class CampaignDto {
         @Getter
         @Builder
         public static class Request {
-            @NotNull
+            @NotNull(message = "캠페인 이름은 필수입니다")
             private String name;
-            @NotNull
+
+            @NotNull(message = "캠페인 설명은 필수입니다")
             private String description;
-            @NotNull
+
+            @NotNull(message = "스타트업 지갑 주소는 필수입니다")
+            @Pattern(regexp = "^0x[a-fA-F0-9]{40}$", message = "올바른 이더리움 주소 형식이 아닙니다")
             private String startupWallet;
-            @Positive
+
+            @Positive(message = "목표 금액은 0보다 커야 합니다")
             private Long targetAmount;
-            @NotNull
+
+            @NotNull(message = "관리자 ID는 필수입니다")
             private Long adminUserId;
+
+            @Positive(message = "캠페인 기간은 0보다 커야 합니다")
+            @Max(value = 365, message = "캠페인 기간은 최대 365일입니다")
+            private Integer durationInDays;
         }
 
         @Getter
@@ -30,8 +39,40 @@ public class CampaignDto {
             private Long campaignId;
             private String name;
             private String description;
+            private String startupWallet;
             private Long targetAmount;
+            private LocalDateTime startTime;
+            private LocalDateTime endTime;
             private String transactionHash;
+        }
+    }
+
+    public static class Status {
+        @Getter
+        @Builder
+        public static class Response {
+            private Long campaignId;
+            private CampaignStatus status;
+            private LocalDateTime startTime;
+            private LocalDateTime endTime;
+            private String timeRemaining;
+        }
+    }
+
+    public enum CampaignStatus {
+        ACTIVE("진행중"),
+        SUCCESSFUL("성공"),
+        FAILED("실패"),
+        CANCELLED("취소됨");
+
+        private final String description;
+
+        CampaignStatus(String description) {
+            this.description = description;
+        }
+
+        public String getDescription() {
+            return description;
         }
     }
 
@@ -57,21 +98,14 @@ public class CampaignDto {
             private Long amount;
             private Long totalRaised;
             private String transactionHash;
-        }
-
-        @Getter
-        @Builder
-        public static class AmountResponse {
-            private Long campaignId;
-            private String investorAddress;
-            private Long amount;
+            private LocalDateTime investedAt;  // 추가
         }
     }
 
     public static class Investor {
         @Getter
         @Builder
-        public static class StatusResponse {  // 기존 InvestorStatusResponse를 대체
+        public static class StatusResponse {
             private Long campaignId;
             private String investorAddress;
             private Long investedAmount;
@@ -91,9 +125,26 @@ public class CampaignDto {
         }
     }
 
-    // Emergency Withdraw
-    public static class Emergency {
+    public static class Refund {  // 추가: 환불 관련 DTO
+        @Getter
+        @Builder
+        public static class Request {
+            @NotNull(message = "사용자 ID는 필수입니다")
+            private Long userId;
+        }
 
+        @Getter
+        @Builder
+        public static class Response {
+            private Long campaignId;
+            private String investorAddress;
+            private Long amount;
+            private String transactionHash;
+            private LocalDateTime refundedAt;
+        }
+    }
+
+    public static class Emergency {
         @Getter
         @Builder
         public static class Request {
@@ -101,6 +152,7 @@ public class CampaignDto {
             private Long adminUserId;
 
             @NotNull(message = "출금 주소는 필수입니다")
+            @Pattern(regexp = "^0x[a-fA-F0-9]{40}$", message = "올바른 이더리움 주소 형식이 아닙니다")
             private String toAddress;
         }
 
@@ -109,7 +161,9 @@ public class CampaignDto {
         public static class Response {
             private Long campaignId;
             private String toAddress;
+            private Long amount;  // 추가: 출금 금액
             private String transactionHash;
+            private LocalDateTime withdrawnAt;  // 추가: 출금 시간
         }
     }
 }
