@@ -22,6 +22,16 @@ public class WalletController {
     private final WalletService walletService;
     private final TokenService tokenService;
 
+    @GetMapping("/health_check")
+    public String healthCheck() {
+        // 헬스 체크 정보를 문자열로 생성
+        StringBuilder healthStatus = new StringBuilder();
+        healthStatus.append("Status: UP\n");
+        healthStatus.append("Message: Service is running smoothly");
+
+        return healthStatus.toString(); // 텍스트 형식으로 반환
+    }
+
     // 지갑 생성
     @PostMapping
     public ResponseEntity<BaseResponse<WalletDto.Create.Response>> createWallet(

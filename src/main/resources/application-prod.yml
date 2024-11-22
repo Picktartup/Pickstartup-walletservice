@@ -1,0 +1,32 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}.walletservice.svc.cluster.local:5432/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health # health 엔드포인트를 노출
+    health:
+      livenessstate:
+        enabled: true    # Liveness 상태를 활성화
+      readinessstate:
+        enabled: true    # Readiness 상태를 활성화
+
+bsc:
+  network:
+    url: https://data-seed-prebsc-1-s1.binance.org:8545/ #메인넷으로 교체
