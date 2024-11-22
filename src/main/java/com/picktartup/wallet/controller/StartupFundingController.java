@@ -24,6 +24,7 @@ public class StartupFundingController {
             @RequestBody @Valid CampaignDto.Create.Request request) {
         log.info("캠페인 생성 요청 - name: {}, targetAmount: {}",
                 request.getName(), request.getTargetAmount());
+
         return ResponseEntity.ok(
                 BaseResponse.success(startupFundingService.createCampaign(request))
         );
