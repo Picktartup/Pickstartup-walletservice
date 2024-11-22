@@ -2,15 +2,11 @@ package com.picktartup.wallet.service;
 
 import com.picktartup.wallet.contracts.PickenToken;
 import com.picktartup.wallet.contracts.StartupFunding;
-import com.picktartup.wallet.dto.request.CreateCampaignRequest;
-import com.picktartup.wallet.dto.request.EmergencyWithdrawRequest;
-import com.picktartup.wallet.dto.request.InvestRequest;
-import com.picktartup.wallet.dto.response.*;
+import com.picktartup.wallet.dto.CampaignDto;
+import com.picktartup.wallet.dto.TokenDto;
 import com.picktartup.wallet.entity.Wallet;
-import com.picktartup.wallet.exception.BlockchainException;
-import com.picktartup.wallet.exception.InsufficientTokenException;
-import com.picktartup.wallet.exception.InvalidWalletPasswordException;
-import com.picktartup.wallet.exception.WalletNotFoundException;
+import com.picktartup.wallet.exception.BusinessException;
+import com.picktartup.wallet.exception.ErrorCode;
 import com.picktartup.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +14,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.WalletFile;
-import org.web3j.crypto.exception.CipherException;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.tuples.generated.Tuple3;
+import org.web3j.tuples.generated.Tuple4;
 import org.web3j.tx.gas.ContractGasProvider;
+import org.web3j.utils.Convert;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
+
 
 @Slf4j
 @Service
@@ -39,233 +43,249 @@ public class StartupFundingService {
     private final KeystoreService keystoreService;
     private final ContractGasProvider gasProvider;
 
-
-    // 스타트업 생성(관리자만 가능)
+    // Campaign 생성
     @Transactional
-    public CampaignResponse createCampaign(CreateCampaignRequest request) {
-        // 관리자 지갑 조회
-        Wallet adminWallet = walletRepository.findByUserId(request.getAdminUserId())
-                .orElseThrow(() -> new RuntimeException("관리자 지갑을 찾을 수 없습니다."));
+    public CampaignDto.Create.Response createCampaign(CampaignDto.Create.Request request) {
+        log.info("캠페인 생성 시작 - name: {}, targetAmount: {}",
+                request.getName(), request.getTargetAmount());
 
-        //todo : user 조회해서 관리자 권한 확인 로직 추가
+        validateAdminAccess(request.getAdminUserId());
 
         try {
-            // 컨트랙트 인스턴스 생성
-            StartupFunding contract = StartupFunding.load(
-                    fundingContractAddress,
-                    web3j,
-                    adminCredentials,
-                    gasProvider
-            );
+            StartupFunding contract = loadFundingContract(adminCredentials);
 
-            // 캠페인 생성 트랜잭션 실행
+            // duration을 초 단위로 변환 (request에서는 일 단위로 받았다고 가정)
+            long durationInSeconds = request.getDurationInDays() * 24 * 60 * 60;
+
             TransactionReceipt receipt = contract.createCampaign(
                     request.getName(),
                     request.getDescription(),
                     request.getStartupWallet(),
-                    BigInteger.valueOf(request.getTargetAmount())
+                    BigInteger.valueOf(request.getTargetAmount()),
+                    BigInteger.valueOf(durationInSeconds)
             ).send();
 
-            // 이벤트에서 캠페인 ID 추출
-            BigInteger campaignId = contract.getCampaignCreatedEvents(receipt)
-                    .get(0)
-                    .campaignId;
+            List<StartupFunding.CampaignCreatedEventResponse> events =
+                    contract.getCampaignCreatedEvents(receipt);
 
-            return CampaignResponse.builder()
-                    .campaignId(campaignId.longValue())
+            if (events.isEmpty()) {
+                throw new BusinessException(ErrorCode.CAMPAIGN_CREATION_FAILED);
+            }
+
+            StartupFunding.CampaignCreatedEventResponse event = events.get(0);
+
+            log.info("캠페인 생성 완료 - campaignId: {}, txHash: {}",
+                    event.campaignId, receipt.getTransactionHash());
+
+            return CampaignDto.Create.Response.builder()
+                    .campaignId(event.campaignId.longValue())
                     .name(request.getName())
                     .description(request.getDescription())
                     .targetAmount(request.getTargetAmount())
+                    .startTime(Instant.ofEpochSecond(event.startTime.longValue())
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime())
+                    .endTime(Instant.ofEpochSecond(event.endTime.longValue())
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime())
                     .transactionHash(receipt.getTransactionHash())
                     .build();
 
         } catch (Exception e) {
             log.error("캠페인 생성 실패", e);
-            throw new RuntimeException("캠페인 생성에 실패했습니다.", e);
+            throw new BusinessException(ErrorCode.CAMPAIGN_CREATION_FAILED, e.getMessage());
         }
     }
 
+    // 투자
     @Transactional
-    public InvestmentResponse invest(Long campaignId, InvestRequest request) {
-        // 투자자 지갑 조회
-        Wallet investorWallet = walletRepository.findByUserId(request.getUserId())
-                .orElseThrow(() -> new WalletNotFoundException("투자자 지갑을 찾을 수 없습니다."));
+    public CampaignDto.Investment.Response invest(
+            Long campaignId,
+            CampaignDto.Investment.Request request
+    ) {
+        log.info("투자 시작 - userId: {}, campaignId: {}, amount: {}",
+                request.getUserId(), campaignId, request.getAmount());
+
+        // 캠페인 상태 확인
+        CampaignDto.Status.Response campaignStatus = getCampaignStatus(campaignId);
+        validateCampaignStatus(campaignStatus);
+
+        Wallet investorWallet = findAndValidateInvestorWallet(request.getUserId());
+        Credentials investorCredentials = loadInvestorCredentials(
+                investorWallet,
+                request.getWalletPassword()
+        );
 
         try {
-            // 투자자의 Keystore에서 자격증명 로드
-            WalletFile walletFile = keystoreService.getWalletFile(investorWallet.getKeystoreFilename());
+            validateAndApproveTokens(investorCredentials, request.getAmount());
 
-            // 사용자가 입력한 비밀번호로 private key 복호화
-            Credentials investorCredentials;
-            try {
-                investorCredentials = Credentials.create(
-                        keystoreService.decryptPrivateKey(walletFile, request.getWalletPassword())
-                );
-            } catch (CipherException e) {
-                log.error("지갑 비밀번호가 올바르지 않습니다. userId: {}", request.getUserId());
-                throw new InvalidWalletPasswordException("지갑 비밀번호가 올바르지 않습니다.");
-            }
-
-            StartupFunding contract = StartupFunding.load(
-                    fundingContractAddress,
-                    web3j,
-                    investorCredentials,
-                    gasProvider
+            StartupFunding contract = loadFundingContract(investorCredentials);
+            TransactionReceipt receipt = executeInvestment(
+                    contract,
+                    campaignId,
+                    request.getAmount()
             );
 
-            // 투자 전 토큰 승인 여부 확인 및 처리
-            if (!checkAndApproveTokens(investorCredentials, request.getAmount())) {
-                throw new InsufficientTokenException("토큰 승인에 실패했습니다.");
-            }
-
-            TransactionReceipt receipt = contract.invest(
-                    BigInteger.valueOf(campaignId),
-                    BigInteger.valueOf(request.getAmount())
-            ).send();
-
-            StartupFunding.InvestmentMadeEventResponse investmentEvent =
+            StartupFunding.InvestmentMadeEventResponse event =
                     contract.getInvestmentMadeEvents(receipt).get(0);
 
-            return InvestmentResponse.builder()
+            log.info("투자 완료 - userId: {}, campaignId: {}, txHash: {}",
+                    request.getUserId(), campaignId, receipt.getTransactionHash());
+
+            return CampaignDto.Investment.Response.builder()
                     .campaignId(campaignId)
                     .investorAddress(investorWallet.getAddress())
                     .amount(request.getAmount())
-                    .totalRaised(investmentEvent.totalRaised.longValue())
+                    .totalRaised(event.totalRaised.longValue())
                     .transactionHash(receipt.getTransactionHash())
                     .build();
 
         } catch (Exception e) {
-            log.error("투자 실패 - userId: {}, campaignId: {}", request.getUserId(), campaignId, e);
-            throw new BlockchainException("투자에 실패했습니다.", e);
+            log.error("투자 실패 - userId: {}, campaignId: {}",
+                    request.getUserId(), campaignId, e);
+            throw new BusinessException(ErrorCode.INVESTMENT_FAILED, e.getMessage());
         }
     }
 
-    // StartupFundingService 내부 메소드
-    //토큰 잔액 확인 → 현재 승인액 확인 -> (필요시) 승인 초기화 → 새 금액 승인 → 승인 결과 확인
-    private boolean checkAndApproveTokens(Credentials credentials, Long amount) {
+    // 캠페인 상태 조회
+    public CampaignDto.Status.Response getCampaignStatus(Long campaignId) {
         try {
-            // 토큰 컨트랙트 인스턴스 생성
-            PickenToken tokenContract = PickenToken.load(
-                    tokenContractAddress,
-                    web3j,
-                    credentials,
-                    gasProvider
-            );
+            StartupFunding contract = loadFundingContract(createReadOnlyCredentials());
 
-            // 1. 토큰 잔액 확인
-            BigInteger balance = tokenContract.balanceOf(credentials.getAddress()).send();
-            if (balance.compareTo(BigInteger.valueOf(amount)) < 0) {
-                throw new InsufficientTokenException("토큰 잔액이 부족합니다.");
-            }
+            Tuple4<BigInteger, BigInteger, BigInteger, BigInteger> status =
+                    contract.getCampaignStatus(BigInteger.valueOf(campaignId)).send();
 
-            // 2. 현재 승인된 금액 확인
-            BigInteger allowance = tokenContract.allowance(
-                    credentials.getAddress(),
-                    fundingContractAddress
-            ).send();
-
-            // 3. 승인이 필요한 경우에만 승인 진행
-            if (allowance.compareTo(BigInteger.valueOf(amount)) < 0) {
-                // 이전 승인 금액이 있다면 0으로 초기화 (일부 토큰의 보안 요구사항)
-                if (allowance.compareTo(BigInteger.ZERO) > 0) {
-                    TransactionReceipt resetReceipt = tokenContract.approve(
-                            fundingContractAddress,
-                            BigInteger.ZERO
-                    ).send();
-
-                    if (!resetReceipt.isStatusOK()) {
-                        log.error("토큰 승인 초기화 실패 - address: {}", credentials.getAddress());
-                        return false;
-                    }
-                }
-
-                // 새로운 금액으로 승인
-                TransactionReceipt approvalReceipt = tokenContract.approve(
-                        fundingContractAddress,
-                        BigInteger.valueOf(amount)
-                ).send();
-
-                if (!approvalReceipt.isStatusOK()) {
-                    log.error("토큰 승인 실패 - address: {}, amount: {}",
-                            credentials.getAddress(), amount);
-                    return false;
-                }
-
-                // 승인 후 allowance 다시 확인
-                BigInteger newAllowance = tokenContract.allowance(
-                        credentials.getAddress(),
-                        fundingContractAddress
-                ).send();
-
-                if (newAllowance.compareTo(BigInteger.valueOf(amount)) < 0) {
-                    log.error("토큰 승인 확인 실패 - address: {}, amount: {}, allowance: {}",
-                            credentials.getAddress(), amount, newAllowance);
-                    return false;
-                }
-            }
-
-            return true;
-        } catch (Exception e) {
-            if (e instanceof InsufficientTokenException) {
-                throw (InsufficientTokenException) e;
-            }
-            log.error("토큰 승인 처리 중 오류 발생", e);
-            return false;
-        }
-    }
-
-    public CampaignDetailResponse getCampaignDetails(Long campaignId) {
-        try {
-            // 읽기 전용 컨트랙트 인스턴스 생성
-            StartupFunding contract = StartupFunding.load(
-                    fundingContractAddress,
-                    web3j,
-                    Credentials.create("0x0"), // 읽기 전용이므로 더미 자격증명 사용
-                    gasProvider
-            );
-
-            // 캠페인 상태 조회
-            // Tuple3는 Web3j가 생성한 타입으로, 스마트 컨트랙트의 반환값을 담는 클래스
-            Tuple3<BigInteger, BigInteger, BigInteger> balance = contract.getCampaignBalance(
-                    BigInteger.valueOf(campaignId)
-            ).send();
-
-
-            return CampaignDetailResponse.builder()
+            return CampaignDto.Status.Response.builder()
                     .campaignId(campaignId)
-                    .targetAmount(balance.component1().longValue())  // targetAmount
-                    .currentBalance(balance.component2().longValue()) // currentBalance
-                    .remainingAmount(balance.component3().longValue()) // remainingAmount
+                    .status(convertToCampaignStatus(status.component1().intValue()))
+                    .startTime(Instant.ofEpochSecond(status.component2().longValue())
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime())
+                    .endTime(Instant.ofEpochSecond(status.component3().longValue())
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDateTime())
+                    .timeRemaining(String.valueOf(Duration.ofSeconds(status.component4().longValue())))
                     .build();
 
         } catch (Exception e) {
-            log.error("캠페인 상세 조회 실패", e);
-            throw new RuntimeException("캠페인 상세 조회에 실패했습니다.", e);
+            log.error("캠페인 상태 조회 실패 - campaignId: {}", campaignId, e);
+            throw new BusinessException(ErrorCode.CAMPAIGN_STATUS_CHECK_FAILED, e.getMessage());
         }
     }
 
-    public InvestorStatusResponse getInvestorStatus(Long campaignId, Long userId) {
-        // 투자자 지갑 조회
-        Wallet investorWallet = walletRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("투자자 지갑을 찾을 수 없습니다."));
+    // 환불 처리
+    @Transactional
+    public CampaignDto.Refund.Response refund(Long campaignId, Long userId) {
+        log.info("환불 시작 - userId: {}, campaignId: {}", userId, campaignId);
+
+        Wallet investorWallet = findAndValidateInvestorWallet(userId);
 
         try {
-            // 읽기 전용 컨트랙트 인스턴스 생성
-            StartupFunding contract = StartupFunding.load(
-                    fundingContractAddress,
-                    web3j,
-                    Credentials.create("0x0"), // 읽기 전용이므로 더미 자격증명 사용
-                    gasProvider
+            StartupFunding contract = loadFundingContract(
+                    loadInvestorCredentials(investorWallet, "")
             );
 
-            // 투자자 상태 조회
-            Tuple3<BigInteger, BigInteger, BigInteger> status = contract.getInvestorStatus(
-                    BigInteger.valueOf(campaignId),
-                    investorWallet.getAddress()
+            TransactionReceipt receipt = contract.refund(
+                    BigInteger.valueOf(campaignId)
             ).send();
 
+            List<StartupFunding.RefundProcessedEventResponse> events =
+                    contract.getRefundProcessedEvents(receipt);
 
-            return InvestorStatusResponse.builder()
+            if (events.isEmpty()) {
+                throw new BusinessException(ErrorCode.REFUND_FAILED);
+            }
+
+            StartupFunding.RefundProcessedEventResponse event = events.get(0);
+
+            log.info("환불 완료 - userId: {}, campaignId: {}, amount: {}",
+                    userId, campaignId, event.amount);
+
+            return CampaignDto.Refund.Response.builder()
+                    .campaignId(campaignId)
+                    .investorAddress(investorWallet.getAddress())
+                    .amount(event.amount.longValue())
+                    .transactionHash(receipt.getTransactionHash())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("환불 실패 - userId: {}, campaignId: {}", userId, campaignId, e);
+            throw new BusinessException(ErrorCode.REFUND_FAILED, e.getMessage());
+        }
+    }
+
+    // Private helper methods
+    private void validateCampaignStatus(CampaignDto.Status.Response status) {
+        if (status.getStatus() != CampaignDto.CampaignStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.INVALID_CAMPAIGN_STATUS);
+        }
+
+        if (LocalDateTime.now().isBefore(status.getStartTime())) {
+            throw new BusinessException(ErrorCode.CAMPAIGN_NOT_STARTED);
+        }
+
+        if (LocalDateTime.now().isAfter(status.getEndTime())) {
+            throw new BusinessException(ErrorCode.CAMPAIGN_ENDED);
+        }
+    }
+
+    private CampaignDto.CampaignStatus convertToCampaignStatus(int statusCode) {
+        return switch (statusCode) {
+            case 0 -> CampaignDto.CampaignStatus.ACTIVE;
+            case 1 -> CampaignDto.CampaignStatus.SUCCESSFUL;
+            case 2 -> CampaignDto.CampaignStatus.FAILED;
+            case 3 -> CampaignDto.CampaignStatus.CANCELLED;
+            default -> throw new BusinessException(ErrorCode.INVALID_CAMPAIGN_STATUS);
+        };
+    }
+
+    public CampaignDto.Detail.Response getCampaignDetails(Long campaignId) {
+        log.info("캠페인 상세 조회 시작 - campaignId: {}", campaignId);
+
+        try {
+            StartupFunding contract = loadFundingContract(createReadOnlyCredentials());
+
+            Tuple3<BigInteger, BigInteger, BigInteger> balance =
+                    contract.getCampaignBalance(BigInteger.valueOf(campaignId)).send();
+
+            log.info("캠페인 상세 조회 완료 - campaignId: {}, currentBalance: {}",
+                    campaignId, balance.component2());
+
+            return CampaignDto.Detail.Response.builder()
+                    .campaignId(campaignId)
+                    .targetAmount(balance.component1().longValue())
+                    .currentBalance(balance.component2().longValue())
+                    .remainingAmount(balance.component3().longValue())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("캠페인 상세 조회 실패 - campaignId: {}", campaignId, e);
+            throw new BusinessException(
+                    ErrorCode.CAMPAIGN_DETAIL_FETCH_FAILED,
+                    String.format("캠페인 상세 조회 중 오류 발생 - campaignId: %d", campaignId),
+                    e
+            );
+        }
+    }
+
+    public CampaignDto.Investor.StatusResponse getInvestorStatus(Long campaignId, Long userId) {
+        log.info("투자자 상태 조회 시작 - campaignId: {}, userId: {}", campaignId, userId);
+
+        Wallet investorWallet = findAndValidateInvestorWallet(userId);
+
+        try {
+            StartupFunding contract = loadFundingContract(createReadOnlyCredentials());
+
+            Tuple3<BigInteger, BigInteger, BigInteger> status =
+                    contract.getInvestorStatus(
+                            BigInteger.valueOf(campaignId),
+                            investorWallet.getAddress()
+                    ).send();
+
+            log.info("투자자 상태 조회 완료 - campaignId: {}, userId: {}, investedAmount: {}",
+                    campaignId, userId, status.component1());
+
+            return CampaignDto.Investor.StatusResponse.builder()
                     .campaignId(campaignId)
                     .investorAddress(investorWallet.getAddress())
                     .investedAmount(status.component1().longValue())
@@ -274,90 +294,249 @@ public class StartupFundingService {
                     .build();
 
         } catch (Exception e) {
-            log.error("투자자 상태 조회 실패", e);
-            throw new RuntimeException("투자자 상태 조회에 실패했습니다.", e);
+            log.error("투자자 상태 조회 실패 - campaignId: {}, userId: {}", campaignId, userId, e);
+            throw new BusinessException(
+                    ErrorCode.INVESTOR_STATUS_FETCH_FAILED,
+                    String.format("투자자 상태 조회 중 오류 발생 - campaignId: %d, userId: %d",
+                            campaignId, userId),
+                    e
+            );
         }
     }
 
-    public InvestmentAmountResponse getInvestmentAmount(Long campaignId, String address) {
+
+    public TokenDto.Balance.Response getTotalHeldTokens() {
+        log.info("총 보유 토큰 조회 시작");
+
         try {
-            StartupFunding contract = StartupFunding.load(
-                    fundingContractAddress,
-                    web3j,
-                    Credentials.create("0x0"),
-                    gasProvider
-            );
-
-            BigInteger amount = contract.getInvestmentAmount(
-                    BigInteger.valueOf(campaignId),
-                    address
-            ).send();
-
-            return InvestmentAmountResponse.builder()
-                    .campaignId(campaignId)
-                    .investorAddress(address)
-                    .amount(amount.longValue())
-                    .build();
-
-        } catch (Exception e) {
-            log.error("투자 금액 조회 실패", e);
-            throw new RuntimeException("투자 금액 조회에 실패했습니다.", e);
-        }
-    }
-
-    public TokenBalanceResponse getTotalHeldTokens() {
-        try {
-            StartupFunding contract = StartupFunding.load(
-                    fundingContractAddress,
-                    web3j,
-                    Credentials.create("0x0"),
-                    gasProvider
-            );
-
+            StartupFunding contract = loadFundingContract(createReadOnlyCredentials());
             BigInteger balance = contract.getTotalHeldTokens().send();
 
-            return TokenBalanceResponse.builder()
-                    .balance(balance.longValue())
+            // BigInteger를 BigDecimal로 변환 (Wei to Ether)
+            BigDecimal balanceInEther = Convert.fromWei(new BigDecimal(balance), Convert.Unit.ETHER);
+
+            log.info("총 보유 토큰 조회 완료 - balance: {}", balance);
+
+            return TokenDto.Balance.Response.builder()
+                    .address(fundingContractAddress)
+                    .balance(balanceInEther)
                     .build();
 
         } catch (Exception e) {
-            log.error("총 토큰 보유량 조회 실패", e);
-            throw new RuntimeException("총 토큰 보유량 조회에 실패했습니다.", e);
+            log.error("총 보유 토큰 조회 실패", e);
+            throw new BusinessException(
+                    ErrorCode.BALANCE_CHECK_FAILED,
+                    "총 보유 토큰 조회 중 오류 발생",
+                    e
+            );
         }
     }
 
     @Transactional
-    public EmergencyWithdrawResponse emergencyWithdraw(
+    public CampaignDto.Emergency.Response emergencyWithdraw(
             Long campaignId,
-            EmergencyWithdrawRequest request
+            CampaignDto.Emergency.Request request
     ) {
-        // 관리자 지갑 조회
-        Wallet adminWallet = walletRepository.findByUserId(request.getAdminUserId())
-                .orElseThrow(() -> new RuntimeException("관리자 지갑을 찾을 수 없습니다."));
+        log.info("긴급 출금 시작 - campaignId: {}, adminUserId: {}",
+                campaignId, request.getAdminUserId());
+
+        validateAdminAccess(request.getAdminUserId());
 
         try {
-            StartupFunding contract = StartupFunding.load(
-                    fundingContractAddress,
-                    web3j,
-                    adminCredentials,
-                    gasProvider
-            );
+            StartupFunding contract = loadFundingContract(adminCredentials);
 
             TransactionReceipt receipt = contract.emergencyWithdraw(
                     BigInteger.valueOf(campaignId),
                     request.getToAddress()
             ).send();
 
-            return EmergencyWithdrawResponse.builder()
+            log.info("긴급 출금 완료 - campaignId: {}, toAddress: {}, txHash: {}",
+                    campaignId, request.getToAddress(), receipt.getTransactionHash());
+
+            return CampaignDto.Emergency.Response.builder()
                     .campaignId(campaignId)
                     .toAddress(request.getToAddress())
                     .transactionHash(receipt.getTransactionHash())
                     .build();
 
         } catch (Exception e) {
-            log.error("긴급 출금 실패", e);
-            throw new RuntimeException("긴급 출금에 실패했습니다.", e);
+            log.error("긴급 출금 실패 - campaignId: {}", campaignId, e);
+            throw new BusinessException(
+                    ErrorCode.EMERGENCY_WITHDRAW_FAILED,
+                    String.format("긴급 출금 중 오류 발생 - campaignId: %d", campaignId),
+                    e
+            );
         }
     }
-}
 
+    // Private helper methods
+    private StartupFunding loadFundingContract(Credentials credentials) {
+        return StartupFunding.load(
+                fundingContractAddress,
+                web3j,
+                credentials,
+                gasProvider
+        );
+    }
+
+    private Wallet findAndValidateInvestorWallet(Long userId) {
+        return walletRepository.findByUserId(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
+    }
+
+    private Credentials loadInvestorCredentials(Wallet wallet, String password) {
+        try {
+            WalletFile walletFile = keystoreService.getWalletFile(wallet.getKeystoreFilename());
+            String privateKey = keystoreService.decryptPrivateKey(walletFile, password);
+            return Credentials.create(privateKey);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("자격 증명 로드 실패 - walletAddress: {}", wallet.getAddress(), e);
+            throw new BusinessException(
+                    ErrorCode.CONTRACT_INTERACTION_FAILED,
+                    "자격 증명 로드 중 오류가 발생했습니다: " + e.getMessage(),
+                    e
+            );
+        }
+    }
+
+    private void validateAndApproveTokens(Credentials credentials, Long amount) {
+        if (!checkAndApproveTokens(credentials, amount)) {
+            throw new BusinessException(ErrorCode.TOKEN_APPROVAL_FAILED);
+        }
+    }
+
+    private TransactionReceipt executeInvestment(
+            StartupFunding contract,
+            Long campaignId,
+            Long amount) throws Exception {
+        return contract.invest(
+                BigInteger.valueOf(campaignId),
+                BigInteger.valueOf(amount)
+        ).send();
+    }
+
+    private BigInteger extractCampaignId(StartupFunding contract, TransactionReceipt receipt) {
+        return contract.getCampaignCreatedEvents(receipt)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMPAIGN_CREATION_FAILED))
+                .campaignId;
+    }
+
+    private Credentials createReadOnlyCredentials() {
+        return Credentials.create("0x0");
+    }
+
+    private void validateAdminAccess(Long adminUserId) {
+        Wallet adminWallet = walletRepository.findByUserId(adminUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ADMIN_NOT_FOUND));
+
+        if (!isAdmin(adminUserId)) {
+            throw new BusinessException(
+                    ErrorCode.UNAUTHORIZED_ACCESS,
+                    "관리자 권한이 없습니다."
+            );
+        }
+    }
+
+    private boolean isAdmin(Long userId) {
+        // TODO: 실제 관리자 권한 확인 로직 구현 필요
+        return true;
+    }
+
+    private boolean checkAndApproveTokens(Credentials credentials, Long amount) {
+        try {
+            PickenToken tokenContract = loadTokenContract(credentials);
+
+            // 1. 토큰 잔액 검증
+            BigInteger balance = tokenContract.balanceOf(credentials.getAddress()).send();
+            if (balance.compareTo(BigInteger.valueOf(amount)) < 0) {
+                throw new BusinessException(ErrorCode.INSUFFICIENT_TOKEN_BALANCE);
+            }
+
+            // 2. 현재 승인액 확인
+            BigInteger allowance = tokenContract.allowance(
+                    credentials.getAddress(),
+                    fundingContractAddress
+            ).send();
+
+            // 3. 필요한 경우에만 승인 진행
+            if (allowance.compareTo(BigInteger.valueOf(amount)) < 0) {
+                return handleTokenApproval(tokenContract, allowance, amount, credentials);
+            }
+
+            return true;
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("토큰 승인 처리 중 오류 발생", e);
+            throw new BusinessException(
+                    ErrorCode.TOKEN_APPROVAL_FAILED,
+                    "토큰 승인 처리 중 오류가 발생했습니다.",
+                    e
+            );
+        }
+    }
+
+    private boolean handleTokenApproval(
+            PickenToken tokenContract,
+            BigInteger currentAllowance,
+            Long requiredAmount,
+            Credentials credentials
+    ) throws Exception {
+        // 기존 승인액 초기화
+        if (currentAllowance.compareTo(BigInteger.ZERO) > 0) {
+            TransactionReceipt resetReceipt = tokenContract.approve(
+                    fundingContractAddress,
+                    BigInteger.ZERO
+            ).send();
+
+            if (!resetReceipt.isStatusOK()) {
+                throw new BusinessException(
+                        ErrorCode.TOKEN_APPROVAL_FAILED,
+                        "토큰 승인 초기화 실패"
+                );
+            }
+        }
+
+        // 새로운 승인
+        TransactionReceipt approvalReceipt = tokenContract.approve(
+                fundingContractAddress,
+                BigInteger.valueOf(requiredAmount)
+        ).send();
+
+        if (!approvalReceipt.isStatusOK()) {
+            throw new BusinessException(
+                    ErrorCode.TOKEN_APPROVAL_FAILED,
+                    "토큰 승인 실패"
+            );
+        }
+
+        // 승인 결과 확인
+        BigInteger newAllowance = tokenContract.allowance(
+                credentials.getAddress(),
+                fundingContractAddress
+        ).send();
+
+        if (newAllowance.compareTo(BigInteger.valueOf(requiredAmount)) < 0) {
+            throw new BusinessException(
+                    ErrorCode.TOKEN_APPROVAL_FAILED,
+                    "토큰 승인 확인 실패"
+            );
+        }
+
+        return true;
+    }
+
+    private PickenToken loadTokenContract(Credentials credentials) {
+        return PickenToken.load(
+                tokenContractAddress,
+                web3j,
+                credentials,
+                gasProvider
+        );
+    }
+}

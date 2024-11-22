@@ -1,9 +1,9 @@
 package com.picktartup.wallet.controller;
 
-import com.picktartup.wallet.dto.request.*;
-import com.picktartup.wallet.dto.response.BaseResponse;
-import com.picktartup.wallet.dto.response.TransactionResponse;
-import com.picktartup.wallet.dto.response.WalletResponse;
+import com.picktartup.wallet.dto.PaymentDto;
+import com.picktartup.wallet.dto.TransactionDto;
+import com.picktartup.wallet.dto.WalletDto;
+import com.picktartup.wallet.dto.BaseResponse;
 import com.picktartup.wallet.service.TokenService;
 import com.picktartup.wallet.service.WalletService;
 
@@ -24,9 +24,8 @@ public class WalletController {
 
     // 지갑 생성
     @PostMapping
-    public ResponseEntity<BaseResponse<WalletResponse>> createWallet(
-            @RequestBody @Valid CreateWalletRequest request
-    ) {
+    public ResponseEntity<BaseResponse<WalletDto.Create.Response>> createWallet(
+            @RequestBody @Valid WalletDto.Create.Request request) {
         log.info("지갑 생성 요청 - userId: {}", request.getUserId());
         return ResponseEntity.ok(
                 BaseResponse.success(walletService.createWallet(request))
@@ -35,9 +34,8 @@ public class WalletController {
 
     // 사용자의 지갑 정보 조회
     @GetMapping("/users/{userId}")
-    public ResponseEntity<BaseResponse<WalletResponse>> getWalletByUserId(
-            @PathVariable Long userId
-    ) {
+    public ResponseEntity<BaseResponse<WalletDto.Create.Response>> getWalletByUserId(
+            @PathVariable Long userId) {
         log.info("지갑 정보 조회 - userId: {}", userId);
         return ResponseEntity.ok(
                 BaseResponse.success(walletService.getWalletByUserId(userId))
@@ -46,11 +44,11 @@ public class WalletController {
 
     // 특정 지갑의 상태를 변경
     @PatchMapping("/{walletId}/status")
-    public ResponseEntity<BaseResponse<WalletResponse>> updateWalletStatus(
+    public ResponseEntity<BaseResponse<WalletDto.Create.Response>> updateWalletStatus(
             @PathVariable Long walletId,
-            @RequestBody @Valid UpdateWalletStatusRequest request) {
+            @RequestBody @Valid WalletDto.UpdateStatus.Request request) {
         log.info("지갑 상태 변경 요청 - walletId: {}, status: {}", walletId, request.getStatus());
-        WalletResponse response = walletService.updateWalletStatus(walletId, request);
+        WalletDto.Create.Response response = walletService.updateWalletStatus(walletId, request);
         return ResponseEntity.ok(BaseResponse.success(response));
     }
 
@@ -67,20 +65,19 @@ public class WalletController {
 
     // PG사 결제 완료 웹훅
     @PostMapping("/payment/callback")
-    public ResponseEntity<TransactionResponse> handlePaymentCallback(
-            @RequestBody PaymentCallbackRequest request) {
+    public ResponseEntity<TransactionDto.Response> handlePaymentCallback(
+            @RequestBody PaymentDto.Callback.Request request) {
         log.info("결제 완료 웹훅 수신 - 주문번호: {}", request.getOrderId());
 
-        PaymentCompletedEvent event = PaymentCompletedEvent.builder()
+        PaymentDto.CompletedEvent event = PaymentDto.CompletedEvent.builder()
                 .orderId(request.getOrderId())
                 .userId(request .getUserId())
                 .amount(request.getAmount())
                 .paymentId(request.getPaymentId())
                 .build();
 
-        TransactionResponse result = tokenService.mintTokenFromPayment(event);
+        TransactionDto.Response result = tokenService.mintTokenFromPayment(event);
         return ResponseEntity.ok(result);
     }
-
 }
 
