@@ -1,11 +1,11 @@
-CREATE SEQUENCE IF NOT EXISTS wallet_seq
+CREATE SEQUENCE IF NOT EXISTS public.wallet_seq
     INCREMENT 1
     START 5
     MINVALUE 1
     NO MAXVALUE
     CACHE 1;
 
-CREATE SEQUENCE IF NOT EXISTS token_transactions_seq
+CREATE SEQUENCE IF NOT EXISTS public.token_transactions_seq
     INCREMENT 1
     START 5
     MINVALUE 1

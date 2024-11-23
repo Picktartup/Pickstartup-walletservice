@@ -51,6 +51,7 @@ public class StartupFundingController {
     public ResponseEntity<BaseResponse<CampaignDto.Detail.Response>> getCampaignDetails(
             @PathVariable Long campaignId
     ) {
+        // 알림 기능 추가
         log.info("캠페인 상세 조회 - campaignId: {}", campaignId);
         return ResponseEntity.ok(
                 BaseResponse.success(

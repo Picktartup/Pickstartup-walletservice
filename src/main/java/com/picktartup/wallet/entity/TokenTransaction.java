@@ -7,12 +7,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "token_transactions")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Table(name = "tokentransaction")
 public class TokenTransaction{
 
     @Id
@@ -22,11 +22,7 @@ public class TokenTransaction{
     @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false)
     private String orderId;
-
-    @Column(nullable = false)
-    private String paymentId;
 
     @Column(nullable = false)
     private String walletAddress;
