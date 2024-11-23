@@ -9,35 +9,6 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ErrorCode {
 
-    // Campaign
-    CAMPAIGN_CREATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C001", "캠페인 생성에 실패했습니다."),
-    CAMPAIGN_NOT_FOUND(HttpStatus.NOT_FOUND, "C002", "캠페인을 찾을 수 없습니다."),
-    CAMPAIGN_STATUS_CHECK_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C003", "캠페인 상태 조회에 실패했습니다."),
-    CAMPAIGN_NOT_STARTED(HttpStatus.BAD_REQUEST, "C004", "캠페인이 아직 시작되지 않았습니다."),
-    CAMPAIGN_ENDED(HttpStatus.BAD_REQUEST, "C005", "캠페인이 이미 종료되었습니다."),
-    INVALID_CAMPAIGN_STATUS(HttpStatus.BAD_REQUEST, "C006", "유효하지 않은 캠페인 상태입니다."),
-    CAMPAIGN_DETAIL_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C007", "캠페인 상세 정보 조회에 실패했습니다."),
-
-    // Investment
-    INVESTMENT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I001", "투자에 실패했습니다."),
-    INSUFFICIENT_TOKEN_BALANCE(HttpStatus.BAD_REQUEST, "I002", "토큰 잔액이 부족합니다."),
-    TOKEN_APPROVAL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I003", "토큰 승인에 실패했습니다."),
-    INVESTOR_STATUS_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I004", "투자자 상태 조회에 실패했습니다."),
-
-    // Refund
-    REFUND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "R001", "환불 처리에 실패했습니다."),
-    REFUND_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "R002", "환불이 불가능한 상태입니다."),
-    NO_REFUND_AMOUNT(HttpStatus.BAD_REQUEST, "R003", "환불 가능한 금액이 없습니다."),
-
-    // Admin
-    ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "관리자를 찾을 수 없습니다."),
-    UNAUTHORIZED_ACCESS(HttpStatus.FORBIDDEN, "A002", "권한이 없습니다."),
-    EMERGENCY_WITHDRAW_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "A003", "긴급 출금에 실패했습니다."),
-
-    // Contract 관련 에러
-    CONTRACT_INTERACTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "T001", "컨트랙트 작업에 실패했습니다."),
-    BALANCE_CHECK_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "T002", "잔액 조회에 실패했습니다."),
-
     // Keystore
     KEYSTORE_FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "K001", "Keystore 파일을 찾을 수 없습니다."),
     KEYSTORE_READ_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "K002", "Keystore 파일을 읽을 수 없습니다."),
