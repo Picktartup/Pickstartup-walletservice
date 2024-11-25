@@ -41,9 +41,9 @@ public class WalletDto {
         @Getter
         @Builder
         public static class Response {
+            private Long userId;
             private String address;
-            private BigDecimal balance;
-            private LocalDateTime lastChecked;
+            private String balance;
         }
     }
 
