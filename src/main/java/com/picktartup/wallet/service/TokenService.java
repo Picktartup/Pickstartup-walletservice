@@ -64,13 +64,17 @@ public class TokenService {
             // 5. 트랜잭션 완료 처리
             updateTransactionSuccess(savedTransaction, receipt.getTransactionHash());
 
+            // 6. 사용자 지갑 잔액 업데이트 (발행된 토큰만큼 증가)
+            userWallet.setBalance(userWallet.getBalance().add(tokenAmount));
+            walletRepository.save(userWallet);
+
             log.info("토큰 발행 완료 - 트랜잭션 해시: {}, 발행량: {} PKN",
                     receipt.getTransactionHash(), tokenAmount);
 
             return createSuccessResponse(receipt.getTransactionHash(), userWallet.getAddress(), tokenAmount);
 
         } catch (Exception e) {
-            // 6. 실패 처리
+            // 7. 실패 처리
             log.error("토큰 발행 실패 - 주문번호: {}", request.getOrderId(), e);
             updateTransactionFailure(savedTransaction, e.getMessage());
             throw new BusinessException(ErrorCode.TOKEN_MINT_FAILED,
@@ -90,7 +94,7 @@ public class TokenService {
         }
     }
 
-    // Private helper methods
+    // Private methods
     private BigDecimal calculateTokenAmount(BigDecimal paymentAmount) {
         return paymentAmount.divide(BigDecimal.valueOf(100), 8, RoundingMode.FLOOR);
     }

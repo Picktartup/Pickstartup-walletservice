@@ -1,15 +1,15 @@
 CREATE TABLE public.wallet
 (
-    wallet_id          BIGINT       PRIMARY KEY DEFAULT nextval('wallet_seq'),   -- wallet_id는 BIGINT로 설정하고 wallet_seq 시퀀스를 사용
-    user_id            BIGINT       NOT NULL,                                  -- 사용자 ID
-    address            VARCHAR(255) NOT NULL UNIQUE,                           -- 지갑 주소 (고유 값)
-    keystore_filename  VARCHAR(255),                                           -- 키스토어 파일명
-    balance            NUMERIC(20, 8) NOT NULL,                                -- 잔고 (소수점 포함 정밀도)
-    status             VARCHAR(50)  NOT NULL,                                  -- 상태 (열거형 값)
-    created_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,                 -- 생성 시간
-    updated_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,                 -- 갱신 시간
+    wallet_id          BIGINT       PRIMARY KEY DEFAULT nextval('wallet_seq'),
+    user_id            BIGINT       NOT NULL,
+    address            VARCHAR(255) NOT NULL UNIQUE,
+    keystore_filename  VARCHAR(255),
+    balance            NUMERIC(36, 18) NOT NULL,
+    status             VARCHAR(50)  NOT NULL,
+    created_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT wallet_status_check CHECK (                                     -- 상태 값 제한
+    CONSTRAINT wallet_status_check CHECK (
         status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED', 'DELETED')
     )
 );

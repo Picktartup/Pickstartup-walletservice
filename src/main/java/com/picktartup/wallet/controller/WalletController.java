@@ -80,7 +80,6 @@ public class WalletController {
         );
     }
 
-
     // PG사 결제 완료 웹훅
     @PostMapping("/payment/callback")
     public ResponseEntity<TransactionDto.Response> handlePaymentCallback(
@@ -89,7 +88,7 @@ public class WalletController {
 
         PaymentDto.CompletedEvent event = PaymentDto.CompletedEvent.builder()
                 .orderId(request.getOrderId())
-                .userId(request .getUserId())
+                .userId(request.getUserId())
                 .amount(request.getAmount())
                 .build();
 
