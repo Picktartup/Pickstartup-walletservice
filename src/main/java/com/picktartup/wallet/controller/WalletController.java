@@ -83,7 +83,6 @@ public class WalletController {
                 .orderId(request.getOrderId())
                 .userId(request .getUserId())
                 .amount(request.getAmount())
-                .paymentId(request.getPaymentId())
                 .build();
 
         TransactionDto.Response result = tokenService.mintTokenFromPayment(event);

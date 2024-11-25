@@ -29,9 +29,6 @@ public class PaymentDto {
             @Positive(message = "결제 금액은 0보다 커야 합니다")
             private BigDecimal amount;
 
-            @NotBlank(message = "결제 ID는 필수입니다")
-            private String paymentId;
-
             private String paymentMethod;
         }
 
@@ -42,7 +39,6 @@ public class PaymentDto {
             private String toAddress;
             private BigDecimal amount;
             private String status;
-            private String paymentId;
             private LocalDateTime processedAt;
         }
     }
@@ -56,7 +52,6 @@ public class PaymentDto {
         private String orderId;
         private Long userId;
         private BigDecimal amount;
-        private String paymentId;
 
         @Builder.Default
         private LocalDateTime completedAt = LocalDateTime.now();
@@ -67,7 +62,6 @@ public class PaymentDto {
                     .orderId(request.getOrderId())
                     .userId(request.getUserId())
                     .amount(request.getAmount())
-                    .paymentId(request.getPaymentId())
                     .build();
         }
 
@@ -76,13 +70,12 @@ public class PaymentDto {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CompletedEvent that = (CompletedEvent) o;
-            return Objects.equals(orderId, that.orderId) &&
-                    Objects.equals(paymentId, that.paymentId);
+            return Objects.equals(orderId, that.orderId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(orderId, paymentId);
+            return Objects.hash(orderId);
         }
 
         @Override
@@ -91,7 +84,6 @@ public class PaymentDto {
                     "orderId='" + orderId + '\'' +
                     ", userId=" + userId +
                     ", amount=" + amount +
-                    ", paymentId='" + paymentId + '\'' +
                     ", completedAt=" + completedAt +
                     '}';
         }

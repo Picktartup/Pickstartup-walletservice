@@ -14,12 +14,11 @@ CREATE TABLE public.wallet
     )
 );
 
-CREATE TABLE public.token_transactions
+CREATE TABLE public.tokenTransaction
 (
     id                 BIGINT PRIMARY KEY DEFAULT nextval('token_transactions_seq'),  -- 거래 ID는 BIGINT로 설정하고 token_transactions_seq 시퀀스를 사용
     user_id            BIGINT NOT NULL,                                          -- 사용자 ID
-    order_id           VARCHAR(255) NOT NULL,                                    -- 주문 ID
-    payment_id         VARCHAR(255) NOT NULL,                                    -- 결제 ID
+    order_id           VARCHAR(255),                              -- 주문 ID                                   -- 결제 ID
     wallet_address     VARCHAR(255) NOT NULL,                                    -- 지갑 주소
     amount             NUMERIC(20, 8) NOT NULL,                                  -- 결제 금액
     token_amount       NUMERIC(20, 8) NOT NULL,                                  -- 토큰 수량

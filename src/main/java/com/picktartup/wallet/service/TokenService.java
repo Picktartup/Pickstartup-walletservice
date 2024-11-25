@@ -108,7 +108,6 @@ public class TokenService {
         return TokenTransaction.builder()
                 .userId(request.getUserId())
                 .orderId(request.getOrderId())
-                .paymentId(request.getPaymentId())
                 .walletAddress(userWallet.getAddress())
                 .amount(request.getAmount())
                 .tokenAmount(tokenAmount)
