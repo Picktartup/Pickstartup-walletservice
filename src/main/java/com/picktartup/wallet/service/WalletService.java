@@ -127,6 +127,7 @@ public class WalletService {
         return WalletDto.Create.Response.builder()
                 .userId(wallet.getUserId())
                 .address(wallet.getAddress())
+                .keystoreFilename(wallet.getKeystoreFilename())
                 .balance(wallet.getBalance())
                 .status(wallet.getStatus())
                 .createdAt(wallet.getCreatedAt())
