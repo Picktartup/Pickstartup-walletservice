@@ -71,6 +71,14 @@ public class WalletController {
     }
 
     // 특정 지갑의 잔고 조회(DB 조회 O, 실제 네트워크 X )
+    @GetMapping("/users/{userId}/balance")
+    public ResponseEntity<BaseResponse<WalletDto.Balance.Response>> getWalletBalanceByUserId(
+            @PathVariable Long userId) {
+        log.info("지갑 정보 조회 - userId: {}", userId);
+        return ResponseEntity.ok(
+                BaseResponse.success(walletService.getWalletBalanceByUserId(userId))
+        );
+    }
 
 
     // PG사 결제 완료 웹훅

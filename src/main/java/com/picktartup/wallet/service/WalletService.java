@@ -29,6 +29,7 @@ import org.web3j.protocol.core.methods.response.EthCall;
 import java.io.File;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -219,5 +220,20 @@ public class WalletService {
         } else {
             return false;
         }
+    }
+
+    public WalletDto.Balance.Response getWalletBalanceByUserId(Long userId) {
+        Wallet wallet = walletRepository.findByUserId(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
+
+        // 0을 지수 표기법 없이 소수점 8자리까지 포맷팅
+        DecimalFormat df = new DecimalFormat("0.########");
+        String formattedBalance = df.format(wallet.getBalance());
+
+        return WalletDto.Balance.Response.builder()
+                .userId(wallet.getUserId())
+                .address(wallet.getAddress())
+                .balance(formattedBalance)  // 문자열로 반환
+                .build();
     }
 }
