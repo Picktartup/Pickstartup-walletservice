@@ -3,7 +3,9 @@ package com.picktartup.wallet.controller;
 import com.picktartup.wallet.dto.PaymentDto;
 import com.picktartup.wallet.dto.TransactionDto;
 import com.picktartup.wallet.dto.WalletDto;
-import com.picktartup.wallet.dto.BaseResponse;
+import com.picktartup.wallet.dto.response.BaseResponse;
+import com.picktartup.wallet.dto.response.SingleResponse;
+import com.picktartup.wallet.service.ResponseService;
 import com.picktartup.wallet.service.TokenService;
 import com.picktartup.wallet.service.WalletService;
 
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @RestController
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class WalletController {
 
+    private final ResponseService responseService;
     private final WalletService walletService;
     private final TokenService tokenService;
 
@@ -43,13 +47,15 @@ public class WalletController {
     }
 
     // 사용자의 지갑 정보 조회
-    @GetMapping("/users/{userId}")
-    public ResponseEntity<BaseResponse<WalletDto.Create.Response>> getWalletByUserId(
-            @PathVariable Long userId) {
-        log.info("지갑 정보 조회 - userId: {}", userId);
-        return ResponseEntity.ok(
-                BaseResponse.success(walletService.getWalletByUserId(userId))
-        );
+    @GetMapping("/user/{userId}")
+    public Mono<SingleResponse<WalletDto.Create.Response>> getWalletByUserId(@PathVariable Long userId) {
+        return responseService.getMonoSingleResult(walletService.getWalletByUserId(userId))
+                .doOnSuccess(result ->
+                        log.info("Successfully returned wallet info for userId: {}", userId))
+                .doOnError(error ->
+                        log.error("Error returning wallet info for userId {}: {}",
+                                userId, error.getMessage()));
+
     }
 
     // 특정 지갑의 상태를 변경

@@ -24,6 +24,8 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthCall;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
 import java.math.BigDecimal;
@@ -120,19 +122,19 @@ public class WalletService {
 
 
     // 사용자 ID로 지갑 조회
-    public WalletDto.Create.Response getWalletByUserId(Long userId) {
-        Wallet wallet = walletRepository.findByUserId(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
-
-        return WalletDto.Create.Response.builder()
-                .userId(wallet.getUserId())
-                .address(wallet.getAddress())
-                .keystoreFilename(wallet.getKeystoreFilename())
-                .balance(wallet.getBalance())
-                .status(wallet.getStatus())
-                .createdAt(wallet.getCreatedAt())
-                .updatedAt(wallet.getUpdatedAt())
-                .build();
+    public Mono<WalletDto.Create.Response> getWalletByUserId(Long userId) {
+        return Mono.fromCallable(() ->
+                walletRepository.findByUserId(userId)
+                        .map(wallet -> WalletDto.Create.Response.builder()
+                                .userId(wallet.getUserId())
+                                .address(wallet.getAddress())
+                                .balance(wallet.getBalance())
+                                .status(wallet.getStatus())
+                                .createdAt(wallet.getCreatedAt())
+                                .updatedAt(wallet.getUpdatedAt())
+                                .build())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND))
+        ).subscribeOn(Schedulers.boundedElastic());
     }
 
     // DB에 저장된 지갑 잔고 조회
