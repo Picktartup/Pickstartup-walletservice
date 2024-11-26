@@ -10,7 +10,6 @@ import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.abi.FunctionEncoder;
 import org.web3j.abi.FunctionReturnDecoder;
@@ -25,10 +24,13 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthCall;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.List;
@@ -45,9 +47,8 @@ public class WalletService {
 
     private final Web3j web3j;
     private final WalletRepository walletRepository;
-
-    @Value("${wallet.keystore.directory}")
-    private String keystoreDirectory;
+    private final String tokenContractAddress;
+    private final String keystoreDirectory;
 
     @PostConstruct
     public void init() {
@@ -121,19 +122,19 @@ public class WalletService {
 
 
     // 사용자 ID로 지갑 조회
-    public WalletDto.Create.Response getWalletByUserId(Long userId) {
-        Wallet wallet = walletRepository.findByUserId(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
-
-        return WalletDto.Create.Response.builder()
-                .userId(wallet.getUserId())
-                .address(wallet.getAddress())
-                .keystoreFilename(wallet.getKeystoreFilename())
-                .balance(wallet.getBalance())
-                .status(wallet.getStatus())
-                .createdAt(wallet.getCreatedAt())
-                .updatedAt(wallet.getUpdatedAt())
-                .build();
+    public Mono<WalletDto.Create.Response> getWalletByUserId(Long userId) {
+        return Mono.fromCallable(() ->
+                walletRepository.findByUserId(userId)
+                        .map(wallet -> WalletDto.Create.Response.builder()
+                                .userId(wallet.getUserId())
+                                .address(wallet.getAddress())
+                                .balance(wallet.getBalance())
+                                .status(wallet.getStatus())
+                                .createdAt(wallet.getCreatedAt())
+                                .updatedAt(wallet.getUpdatedAt())
+                                .build())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND))
+        ).subscribeOn(Schedulers.boundedElastic());
     }
 
     // DB에 저장된 지갑 잔고 조회
@@ -168,9 +169,18 @@ public class WalletService {
     public void updateBalance(String address) {
         try {
             BigInteger balance = getTokenBalance(address);
+            log.info("Raw balance from blockchain: {}", balance);
+
             Wallet wallet = walletRepository.findByAddress(address)
                     .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
-            wallet.updateBalance(new BigDecimal(balance));
+
+            // Wei를 Ether로 변환 (10^18로 나누기)
+            BigDecimal balanceInEther = new BigDecimal(balance)
+                    .divide(new BigDecimal("1000000000000000000"), 18, RoundingMode.HALF_DOWN);
+
+            log.info("Converted balance in Ether: {}", balanceInEther);
+
+            wallet.updateBalance(balanceInEther);
 
         } catch (BusinessException e) {
             throw e;
@@ -182,7 +192,6 @@ public class WalletService {
 
     // 블록체인 네트워크에서 토큰 잔고 조회
     public BigInteger getTokenBalance(String address) throws Exception {
-        String contractAddress = "0xYourTokenContractAddress";
 
         Function function = new Function(
                 "balanceOf",
@@ -195,7 +204,7 @@ public class WalletService {
         EthCall response = web3j.ethCall(
                 Transaction.createEthCallTransaction(
                         null,
-                        contractAddress,
+                        tokenContractAddress,
                         encodedFunction
                 ),
                 DefaultBlockParameterName.LATEST
