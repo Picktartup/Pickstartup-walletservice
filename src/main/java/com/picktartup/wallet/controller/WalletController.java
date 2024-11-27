@@ -5,6 +5,7 @@ import com.picktartup.wallet.dto.TransactionDto;
 import com.picktartup.wallet.dto.WalletDto;
 import com.picktartup.wallet.dto.response.BaseResponse;
 import com.picktartup.wallet.dto.response.SingleResponse;
+import com.picktartup.wallet.exception.BusinessException;
 import com.picktartup.wallet.service.ResponseService;
 import com.picktartup.wallet.service.TokenService;
 import com.picktartup.wallet.service.WalletService;
@@ -44,18 +45,21 @@ public class WalletController {
         return ResponseEntity.ok(
                 BaseResponse.success(walletService.createWallet(request))
         );
+
     }
 
     // 사용자의 지갑 정보 조회
     @GetMapping("/user/{userId}")
-    public Mono<SingleResponse<WalletDto.Create.Response>> getWalletByUserId(@PathVariable Long userId) {
-        return responseService.getMonoSingleResult(walletService.getWalletByUserId(userId))
-                .doOnSuccess(result ->
-                        log.info("Successfully returned wallet info for userId: {}", userId))
-                .doOnError(error ->
-                        log.error("Error returning wallet info for userId {}: {}",
-                                userId, error.getMessage()));
-
+    public BaseResponse<WalletDto.Create.Response> getWalletByUserId(@PathVariable Long userId) {
+        try {
+            log.info("Successfully returned wallet info for userId: {}", userId);
+            WalletDto.Create.Response result = walletService.getWalletByUserId(userId);
+            return BaseResponse.success(result);
+        } catch (BusinessException e) {
+            return BaseResponse.error(e.getMessage(), e.getErrorCode().toString());
+        } catch (Exception e) {
+            return BaseResponse.error(e.getMessage(), "INTERNAL_SERVER_ERROR");
+        }
     }
 
     // 특정 지갑의 상태를 변경
