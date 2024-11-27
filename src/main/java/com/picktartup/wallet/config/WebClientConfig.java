@@ -13,13 +13,30 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Configuration
 public class WebClientConfig {
-    @Value("${user.service.url}")
+    @Value("${service.user.url}")
     private String userServiceUrl;
+
+    @Value("${service.coin .url}")
+    private String coinServiceUrl;
 
     @Bean
     public WebClient userServiceWebClient() {
         return WebClient.builder()
                 .baseUrl(userServiceUrl)
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .filter(ExchangeFilterFunction.ofRequestProcessor(
+                        clientRequest -> {
+                            log.debug("Request: {} {}", clientRequest.method(), clientRequest.url());
+                            return Mono.just(clientRequest);
+                        }
+                ))
+                .build();
+    }
+
+    @Bean
+    public WebClient coinServiceWebClient() {
+        return WebClient.builder()
+                .baseUrl(coinServiceUrl)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .filter(ExchangeFilterFunction.ofRequestProcessor(
                         clientRequest -> {

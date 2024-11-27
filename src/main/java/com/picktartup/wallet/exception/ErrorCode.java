@@ -34,6 +34,14 @@ public enum ErrorCode {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "U001", "사용자를 찾을 수 없습니다."),
     USER_NOT_ACTIVE(HttpStatus.BAD_REQUEST, "U002", "비활성화된 사용자입니다."),
     USER_SERVICE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "U003", "사용자 서비스 오류가 발생했습니다."),
+    UNAUTHORIZED_ACCESS(HttpStatus.FORBIDDEN, "U004", "권한이 없는 사용자입니다."),
+
+    // Coin
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "O001", "주문을 찾을 수 없습니다."),
+    PAYMENT_SERVICE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "O002", "주문 서비스 오류가 발생했습니다."),
+    INVALID_PAYMENT_STATUS(HttpStatus.BAD_REQUEST, "O003", "유효하지 않은 주문 상태입니다."),
+    PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "O004", "주문 금액이 일치하지 않습니다."),
+    PAYMENT_USER_MISMATCH(HttpStatus.BAD_REQUEST, "O005", "주문 사용자가 일치하지 않습니다."),
 
     // 시스템 관련 에러
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "S001", "내부 서버 오류가 발생했습니다."),

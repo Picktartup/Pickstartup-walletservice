@@ -4,7 +4,6 @@ import com.picktartup.wallet.dto.PaymentDto;
 import com.picktartup.wallet.dto.TransactionDto;
 import com.picktartup.wallet.dto.WalletDto;
 import com.picktartup.wallet.dto.response.BaseResponse;
-import com.picktartup.wallet.dto.response.SingleResponse;
 import com.picktartup.wallet.exception.BusinessException;
 import com.picktartup.wallet.service.ResponseService;
 import com.picktartup.wallet.service.TokenService;
@@ -15,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Mono;
 
 @Slf4j
 @RestController
@@ -92,18 +90,16 @@ public class WalletController {
 
     // PG사 결제 완료 웹훅
     @PostMapping("/payment/callback")
-    public ResponseEntity<TransactionDto.Response> handlePaymentCallback(
+    public ResponseEntity<BaseResponse<TransactionDto.Response>> handlePaymentCallback(
             @RequestBody PaymentDto.Callback.Request request) {
-        log.info("결제 완료 웹훅 수신 - 주문번호: {}", request.getOrderId());
+        log.info("결제 완료 웹훅 수신 - 주문번호: {}", request.getTransactionId());
 
-        PaymentDto.CompletedEvent event = PaymentDto.CompletedEvent.builder()
-                .orderId(request.getOrderId())
-                .userId(request.getUserId())
-                .amount(request.getAmount())
-                .build();
+        PaymentDto.CompletedEvent event = PaymentDto.CompletedEvent.from(request);
 
         TransactionDto.Response result = tokenService.mintTokenFromPayment(event);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(
+                BaseResponse.success(result)
+        );
     }
 }
 

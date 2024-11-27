@@ -20,7 +20,7 @@ public class PaymentDto {
         @Builder
         public static class Request {
             @NotBlank(message = "주문번호는 필수입니다")
-            private String orderId;
+            private Long transactionId;
 
             @NotNull(message = "사용자 ID는 필수입니다")
             private Long userId;
@@ -49,7 +49,7 @@ public class PaymentDto {
     @AllArgsConstructor
     @Builder
     public static class CompletedEvent {
-        private String orderId;
+        private Long transactionId;
         private Long userId;
         private BigDecimal amount;
 
@@ -59,7 +59,7 @@ public class PaymentDto {
         // Callback.Request로부터 이벤트 생성
         public static CompletedEvent from(Callback.Request request) {
             return CompletedEvent.builder()
-                    .orderId(request.getOrderId())
+                    .transactionId(request.getTransactionId())
                     .userId(request.getUserId())
                     .amount(request.getAmount())
                     .build();
@@ -70,18 +70,18 @@ public class PaymentDto {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CompletedEvent that = (CompletedEvent) o;
-            return Objects.equals(orderId, that.orderId);
+            return Objects.equals(transactionId, that.transactionId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(orderId);
+            return Objects.hash(transactionId);
         }
 
         @Override
         public String toString() {
             return "CompletedEvent{" +
-                    "orderId='" + orderId + '\'' +
+                    "transactionId='" + transactionId + '\'' +
                     ", userId=" + userId +
                     ", amount=" + amount +
                     ", completedAt=" + completedAt +

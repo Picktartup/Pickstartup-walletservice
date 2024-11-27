@@ -47,4 +47,36 @@ public class UserServiceClient {
             throw new BusinessException(ErrorCode.USER_SERVICE_ERROR);
         }
     }
+
+    public void validateAdminUser(Long userId) {
+        try {
+            BaseResponse<UserDto.ValidationAdminResponse> response = userServiceWebClient.get()
+                    .uri("/api/v1/users/" + userId + "/validation")
+                    .retrieve()
+                    .onStatus(status -> status.is4xxClientError(), clientResponse -> {
+                        if (clientResponse.statusCode() == HttpStatus.NOT_FOUND) {
+                            return Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND));
+                        }
+                        return Mono.error(new BusinessException(ErrorCode.USER_SERVICE_ERROR));
+                    })
+                    .onStatus(status -> status.is5xxServerError(), clientResponse ->
+                            Mono.error(new BusinessException(ErrorCode.USER_SERVICE_ERROR)))
+                    .bodyToMono(new ParameterizedTypeReference<BaseResponse<UserDto.ValidationAdminResponse>>() {})
+                    .block();
+
+            if (response == null || response.getData() == null) {
+                throw new BusinessException(ErrorCode.USER_SERVICE_ERROR);
+            }
+
+            UserDto.ValidationAdminResponse userInfo = response.getData();
+
+            // 관리자 권한 체크
+            if (!"ADMIN".equals(userInfo.getRole())) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED_ACCESS);
+            }
+        } catch (WebClientResponseException e) {
+            log.error("User service error: {}", e.getMessage());
+            throw new BusinessException(ErrorCode.USER_SERVICE_ERROR);
+        }
+    }
 }

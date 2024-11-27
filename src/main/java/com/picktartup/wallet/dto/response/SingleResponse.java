@@ -1,6 +1,5 @@
 package com.picktartup.wallet.dto.response;
 
-import com.picktartup.wallet.dto.response.CommonResponse;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
