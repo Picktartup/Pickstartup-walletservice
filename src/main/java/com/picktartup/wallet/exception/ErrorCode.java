@@ -30,6 +30,11 @@ public enum ErrorCode {
     INVALID_WALLET_STATUS(HttpStatus.BAD_REQUEST, "W005", "유효하지 않은 지갑 상태입니다."),
     INVALID_WALLET_PASSWORD(HttpStatus.BAD_REQUEST, "W006", "잘못된 지갑 비밀번호입니다."),
 
+    // User
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "U001", "사용자를 찾을 수 없습니다."),
+    USER_NOT_ACTIVE(HttpStatus.BAD_REQUEST, "U002", "비활성화된 사용자입니다."),
+    USER_SERVICE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "U003", "사용자 서비스 오류가 발생했습니다."),
+
     // 시스템 관련 에러
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "S001", "내부 서버 오류가 발생했습니다."),
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "S002", "잘못된 입력값입니다.");

@@ -20,3 +20,7 @@ contract:
     address: ${CONTRACT_FUNDING_ADDRESS}
   admin:
     private-key: ${CONTRACT_ADMIN_PRIVATEKEY}
+
+service:
+  wallet:
+    url: http://192.168.0.143:32450/user
