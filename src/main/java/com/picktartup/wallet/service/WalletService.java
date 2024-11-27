@@ -122,19 +122,17 @@ public class WalletService {
 
 
     // 사용자 ID로 지갑 조회
-    public Mono<WalletDto.Create.Response> getWalletByUserId(Long userId) {
-        return Mono.fromCallable(() ->
-                walletRepository.findByUserId(userId)
-                        .map(wallet -> WalletDto.Create.Response.builder()
-                                .userId(wallet.getUserId())
-                                .address(wallet.getAddress())
-                                .balance(wallet.getBalance())
-                                .status(wallet.getStatus())
-                                .createdAt(wallet.getCreatedAt())
-                                .updatedAt(wallet.getUpdatedAt())
-                                .build())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND))
-        ).subscribeOn(Schedulers.boundedElastic());
+    public WalletDto.Create.Response getWalletByUserId(Long userId) {
+        return walletRepository.findByUserId(userId)
+                .map(wallet -> WalletDto.Create.Response.builder()
+                        .userId(wallet.getUserId())
+                        .address(wallet.getAddress())
+                        .balance(wallet.getBalance().setScale(6, RoundingMode.DOWN))
+                        .status(wallet.getStatus())
+                        .createdAt(wallet.getCreatedAt())
+                        .updatedAt(wallet.getUpdatedAt())
+                        .build())
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
     }
 
     // DB에 저장된 지갑 잔고 조회
