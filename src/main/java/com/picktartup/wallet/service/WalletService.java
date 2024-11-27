@@ -6,6 +6,7 @@ import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.entity.WalletStatus;
 import com.picktartup.wallet.exception.*;
 import com.picktartup.wallet.repository.WalletRepository;
+import com.picktartup.wallet.webclient.UserServiceClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -24,8 +25,6 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthCall;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
 import java.math.BigDecimal;
@@ -49,6 +48,7 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final String tokenContractAddress;
     private final String keystoreDirectory;
+    private final UserServiceClient userServiceClient;
 
     @PostConstruct
     public void init() {
@@ -65,6 +65,9 @@ public class WalletService {
     @Transactional
     public WalletDto.Create.Response createWallet(WalletDto.Create.Request request) {
         try {
+            //0. 사용자 존재 여부 검증
+            userServiceClient.validateUserExists(request.getUserId());
+
             // 1. 동일한 userId로 이미 지갑이 존재하는지 확인
             Optional<Wallet> existingWallet = walletRepository.findByUserId(request.getUserId());
             if (existingWallet.isPresent()) {
@@ -243,4 +246,5 @@ public class WalletService {
                 .balance(formattedBalance)  // 문자열로 반환
                 .build();
     }
+
 }

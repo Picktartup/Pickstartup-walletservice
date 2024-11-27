@@ -9,6 +9,8 @@ import com.picktartup.wallet.entity.Wallet;
 import com.picktartup.wallet.exception.*;
 import com.picktartup.wallet.repository.TokenTransactionRepository;
 import com.picktartup.wallet.repository.WalletRepository;
+import com.picktartup.wallet.webclient.CoinServiceClient;
+import com.picktartup.wallet.webclient.UserServiceClient;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,30 +43,39 @@ public class TokenService {
     private final Credentials adminCredentials;
     private final ContractGasProvider gasProvider;
 
+    private final UserServiceClient userServiceClient;
+    private final CoinServiceClient coinServiceClient;
+
     @Transactional
     public TransactionDto.Response mintTokenFromPayment(PaymentDto.CompletedEvent request) {
-        log.info("토큰 발행 시작 - 주문번호: {}, 금액: {}", request.getOrderId(), request.getAmount());
+        log.info("토큰 발행 시작 - 주문번호: {}, 금액: {}", request.getTransactionId(), request.getAmount());
 
-        // 1. 사용자 지갑 조회
+        // 1. 사용자 검증 확인
+        userServiceClient.validateUserExists(request.getUserId());
+
+        // 2. 주문 검증
+        coinServiceClient.validatePayment(request.getTransactionId(), request.getUserId(), request.getAmount());
+
+        // 3. 사용자 지갑 조회
         Wallet userWallet = walletRepository.findByUserId(request.getUserId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
 
-        // 2. 토큰 발행 금액 계산 및 검증
+        // 4. 토큰 발행 금액 계산 및 검증
         BigDecimal tokenAmount = calculateTokenAmount(request.getAmount());
         validateTokenAmount(tokenAmount);
 
-        // 3. 트랜잭션 생성 및 저장
+        // 5. 트랜잭션 생성 및 저장
         TokenTransaction transaction = createTokenTransaction(request, userWallet, tokenAmount);
         TokenTransaction savedTransaction = tokenTransactionRepository.save(transaction);
 
         try {
-            // 4. 컨트랙트 실행
-            TransactionReceipt receipt = executeTokenMint(userWallet.getAddress(), tokenAmount, request.getOrderId());
+            // 6. 컨트랙트 실행
+            TransactionReceipt receipt = executeTokenMint(userWallet.getAddress(), tokenAmount, String.valueOf(request.getTransactionId()));
 
-            // 5. 트랜잭션 완료 처리
+            // 7. 트랜잭션 완료 처리
             updateTransactionSuccess(savedTransaction, receipt.getTransactionHash());
 
-            // 6. 사용자 지갑 잔액 업데이트 (발행된 토큰만큼 증가)
+            // 8. 사용자 지갑 잔액 업데이트 (발행된 토큰만큼 증가)
             userWallet.setBalance(userWallet.getBalance().add(tokenAmount));
             walletRepository.save(userWallet);
 
@@ -74,8 +85,8 @@ public class TokenService {
             return createSuccessResponse(receipt.getTransactionHash(), userWallet.getAddress(), tokenAmount);
 
         } catch (Exception e) {
-            // 7. 실패 처리
-            log.error("토큰 발행 실패 - 주문번호: {}", request.getOrderId(), e);
+            // 9. 실패 처리
+            log.error("토큰 발행 실패 - 주문번호: {}", request.getTransactionId(), e);
             updateTransactionFailure(savedTransaction, e.getMessage());
             throw new BusinessException(ErrorCode.TOKEN_MINT_FAILED,
                     "토큰 발행 중 오류 발생: " + e.getMessage(), e);
@@ -111,7 +122,7 @@ public class TokenService {
             BigDecimal tokenAmount) {
         return TokenTransaction.builder()
                 .userId(request.getUserId())
-                .orderId(request.getOrderId())
+                .orderId(String.valueOf(request.getTransactionId()))
                 .walletAddress(userWallet.getAddress())
                 .amount(request.getAmount())
                 .tokenAmount(tokenAmount)
