@@ -48,13 +48,13 @@ public class TokenService {
 
     @Transactional
     public TransactionDto.Response mintTokenFromPayment(PaymentDto.CompletedEvent request) {
-        log.info("토큰 발행 시작 - 주문번호: {}, 금액: {}", request.getOrderId(), request.getAmount());
+        log.info("토큰 발행 시작 - 주문번호: {}, 금액: {}", request.getTransactionId(), request.getAmount());
 
         // 1. 사용자 검증 확인
         userServiceClient.validateUserExists(request.getUserId());
 
         // 2. 주문 검증
-        coinServiceClient.validatePayment(request.getOrderId(), request.getUserId(), request.getAmount());
+        coinServiceClient.validatePayment(request.getTransactionId(), request.getUserId(), request.getAmount());
 
         // 3. 사용자 지갑 조회
         Wallet userWallet = walletRepository.findByUserId(request.getUserId())
@@ -70,7 +70,7 @@ public class TokenService {
 
         try {
             // 6. 컨트랙트 실행
-            TransactionReceipt receipt = executeTokenMint(userWallet.getAddress(), tokenAmount, request.getOrderId());
+            TransactionReceipt receipt = executeTokenMint(userWallet.getAddress(), tokenAmount, String.valueOf(request.getTransactionId()));
 
             // 7. 트랜잭션 완료 처리
             updateTransactionSuccess(savedTransaction, receipt.getTransactionHash());
@@ -86,7 +86,7 @@ public class TokenService {
 
         } catch (Exception e) {
             // 9. 실패 처리
-            log.error("토큰 발행 실패 - 주문번호: {}", request.getOrderId(), e);
+            log.error("토큰 발행 실패 - 주문번호: {}", request.getTransactionId(), e);
             updateTransactionFailure(savedTransaction, e.getMessage());
             throw new BusinessException(ErrorCode.TOKEN_MINT_FAILED,
                     "토큰 발행 중 오류 발생: " + e.getMessage(), e);
@@ -122,7 +122,7 @@ public class TokenService {
             BigDecimal tokenAmount) {
         return TokenTransaction.builder()
                 .userId(request.getUserId())
-                .orderId(request.getOrderId())
+                .orderId(String.valueOf(request.getTransactionId()))
                 .walletAddress(userWallet.getAddress())
                 .amount(request.getAmount())
                 .tokenAmount(tokenAmount)
