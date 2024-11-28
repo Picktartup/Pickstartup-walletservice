@@ -131,6 +131,7 @@ public class WalletService {
                         .userId(wallet.getUserId())
                         .address(wallet.getAddress())
                         .balance(wallet.getBalance().setScale(6, RoundingMode.DOWN))
+                        .keystoreFilename(wallet.getKeystoreFilename())
                         .status(wallet.getStatus())
                         .createdAt(wallet.getCreatedAt())
                         .updatedAt(wallet.getUpdatedAt())
