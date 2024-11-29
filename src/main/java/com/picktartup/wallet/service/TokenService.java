@@ -14,6 +14,7 @@ import com.picktartup.wallet.webclient.UserServiceClient;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.*;
 import org.web3j.protocol.Web3j;
@@ -36,6 +37,9 @@ import com.picktartup.wallet.contracts.PickenToken;
 @RequiredArgsConstructor
 public class TokenService {
 
+    @Value("${wallet.admin}")
+    private String adminAddress;
+
     private final Web3j web3j;
     private final WalletRepository walletRepository;
     private final TokenTransactionRepository tokenTransactionRepository;
@@ -45,6 +49,62 @@ public class TokenService {
 
     private final UserServiceClient userServiceClient;
     private final CoinServiceClient coinServiceClient;
+
+    @Transactional
+    public TransactionDto.Response transferToAdmin(TransactionDto.Request request) {
+        log.info("토큰 환급 시작 - 주문번호: {}, 토큰 수량: {}", request.getTransactionId(), request.getAmount());
+
+        // 1. 사용자 검증 확인
+        // userServiceClient.validateUserExists(request.getUserId());
+
+        // TODO
+        // 2. 환급 기록 검증
+
+        // 3. 사용자 지갑 조회
+        Wallet userWallet = walletRepository.findByUserId(request.getUserId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
+
+        // 4. 토큰 환급 금액 계산
+        BigDecimal tokenAmount = BigDecimal.valueOf(request.getAmount());
+        BigDecimal cashAmount = calculateCashAmount(tokenAmount);
+
+        // 5. 트랜잭션 생성 및 저장
+        TokenTransaction transaction = TokenTransaction.builder()
+                .userId(request.getUserId())
+                .orderId(String.valueOf(request.getTransactionId()))
+                .walletAddress(userWallet.getAddress())
+                .amount(cashAmount)
+                .tokenAmount(tokenAmount)
+                .type(TransactionType.BURN)
+                .status(TransactionStatus.PENDING)
+                .build();
+        TokenTransaction savedTransaction = tokenTransactionRepository.save(transaction);
+
+        try {
+            // TODO
+            // 6. 컨트랙트 실행
+
+            // 7. 트랜잭션 완료 처리
+            String tmpHash = "0x0000000000000000000000000000000000000000";
+            updateTransactionSuccess(savedTransaction, tmpHash);
+
+            // 8. 사용자 지갑 잔액 업데이트 (환급된 토큰만큼 감소)
+            userWallet.setBalance(userWallet.getBalance().subtract(tokenAmount));
+            walletRepository.save(userWallet);
+
+            log.info("토큰 환급 완료 - 환급 예정 금액: {}원, 총 잔액: {} PKN",
+                                                        cashAmount, userWallet.getBalance());
+
+            return createSuccessResponse(tmpHash, userWallet.getAddress(), cashAmount, userWallet.getBalance());
+
+        } catch (Exception e) {
+            // 9. 실패 처리
+            log.error("토큰 환급 실패 - 주문번호: {}", request.getTransactionId(), e);
+            updateTransactionFailure(savedTransaction, e.getMessage());
+            throw new BusinessException(ErrorCode.CONTRACT_EXECUTION_FAILED,
+                    "토큰 환급 중 오류 발생: " + e.getMessage(), e);
+        }
+    }
 
     @Transactional
     public TransactionDto.Response mintTokenFromPayment(PaymentDto.CompletedEvent request) {
@@ -79,10 +139,10 @@ public class TokenService {
             userWallet.setBalance(userWallet.getBalance().add(tokenAmount));
             walletRepository.save(userWallet);
 
-            log.info("토큰 발행 완료 - 트랜잭션 해시: {}, 발행량: {} PKN",
-                    receipt.getTransactionHash(), tokenAmount);
+            log.info("토큰 발행 완료 - 트랜잭션 해시: {}, 발행량: {} PKN, 총 잔액: {} PKN",
+                    receipt.getTransactionHash(), tokenAmount, userWallet.getBalance());
 
-            return createSuccessResponse(receipt.getTransactionHash(), userWallet.getAddress(), tokenAmount);
+            return createSuccessResponse(receipt.getTransactionHash(), userWallet.getAddress(), tokenAmount, userWallet.getBalance());
 
         } catch (Exception e) {
             // 9. 실패 처리
@@ -108,6 +168,10 @@ public class TokenService {
     // Private methods
     private BigDecimal calculateTokenAmount(BigDecimal paymentAmount) {
         return paymentAmount.divide(BigDecimal.valueOf(100), 8, RoundingMode.FLOOR);
+    }
+
+    private BigDecimal calculateCashAmount(BigDecimal tokenAmount) {
+        return tokenAmount.multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
     }
 
     private void validateTokenAmount(BigDecimal tokenAmount) {
@@ -169,12 +233,14 @@ public class TokenService {
     private TransactionDto.Response createSuccessResponse(
             String txHash,
             String toAddress,
-            BigDecimal amount) {
+            BigDecimal amount,
+            BigDecimal totalBalance) {
         return TransactionDto.Response.builder()
                 .transactionHash(txHash)
                 .from("0x0000000000000000000000000000000000000000")
                 .to(toAddress)
                 .amount(amount)
+                .totalBalance(totalBalance)
                 .status("SUCCESS")
                 .build();
     }
