@@ -16,7 +16,7 @@ public class WebClientConfig {
     @Value("${service.user.url}")
     private String userServiceUrl;
 
-    @Value("${service.coin .url}")
+    @Value("${service.coin.url}")
     private String coinServiceUrl;
 
     @Bean
