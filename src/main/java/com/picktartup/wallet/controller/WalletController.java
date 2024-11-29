@@ -8,7 +8,6 @@ import com.picktartup.wallet.exception.BusinessException;
 import com.picktartup.wallet.service.ResponseService;
 import com.picktartup.wallet.service.TokenService;
 import com.picktartup.wallet.service.WalletService;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -99,6 +98,22 @@ public class WalletController {
         TransactionDto.Response result = tokenService.mintTokenFromPayment(event);
         return ResponseEntity.ok(
                 BaseResponse.success(result)
+        );
+    }
+
+    // TODO: 네트워크 상에 반영
+    // 관리자 지갑으로 토큰 전송
+    @PostMapping("/transmission/admin")
+    public ResponseEntity<BaseResponse<TransactionDto.Response>> transmit(
+            @RequestBody @Valid TransactionDto.Request request
+    ) {
+        log.info("환급 요청 - userId: {}, amount: {}",
+                    request.getUserId(), request.getAmount());
+
+        return ResponseEntity.ok(
+                BaseResponse.success(
+                        tokenService.transferToAdmin(request)
+                )
         );
     }
 }
