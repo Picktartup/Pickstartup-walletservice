@@ -23,9 +23,6 @@ public class TransactionDto {
 
         private Long transactionId;
 
-        @NotBlank(message = "지갑 비밀번호는 필수입니다")
-        private String walletPassword;
-
         @Positive(message = "투자 금액은 0보다 커야 합니다")
         private Double amount; //Picken 단위로 입력
 
