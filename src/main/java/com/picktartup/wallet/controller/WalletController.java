@@ -29,7 +29,8 @@ public class WalletController {
         // 헬스 체크 정보를 문자열로 생성
         StringBuilder healthStatus = new StringBuilder();
         healthStatus.append("Status: UP\n");
-        healthStatus.append("Message: Service is running smoothly");
+        healthStatus.append("Message: Service is running smoothly\n");
+        healthStatus.append("jenkins, argocd CI/CD Test Succeeded\n");
 
         return healthStatus.toString(); // 텍스트 형식으로 반환
     }
