@@ -1,101 +1,120 @@
 package com.picktartup.wallet.controller;
 
+import com.picktartup.wallet.dto.PaymentDto;
+import com.picktartup.wallet.dto.TransactionDto;
+import com.picktartup.wallet.dto.WalletDto;
+import com.picktartup.wallet.dto.response.BaseResponse;
+import com.picktartup.wallet.exception.BusinessException;
+import com.picktartup.wallet.service.ResponseService;
+import com.picktartup.wallet.service.TokenService;
 import com.picktartup.wallet.service.WalletService;
-import jakarta.transaction.Transactional;
-import java.util.Optional;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.Map;
-
+@Slf4j
 @RestController
-@RequestMapping("/api/wallet")
+@RequestMapping("/api/v1/wallets")
+@RequiredArgsConstructor
 public class WalletController {
 
+    private final ResponseService responseService;
     private final WalletService walletService;
+    private final TokenService tokenService;
 
-    @Autowired
-    public WalletController(WalletService walletService) {
-        this.walletService = walletService;
+    @GetMapping("/health_check")
+    public String healthCheck() {
+        // 헬스 체크 정보를 문자열로 생성
+        StringBuilder healthStatus = new StringBuilder();
+        healthStatus.append("Status: UP\n");
+        healthStatus.append("Message: Service is running smoothly");
+
+        return healthStatus.toString(); // 텍스트 형식으로 반환
     }
 
-    /**
-     * 새 지갑을 생성하고 주소를 반환하는 API
-     * @param password 지갑 비밀번호
-     * @param walletDirectory 사용자가 지정한 지갑 파일 저장 경로
-     * @return 생성된 지갑 주소
-     */
-    @PostMapping("/create")
-    public ResponseEntity<Map<String, String>> createWallet(
-            @RequestParam String password,
-            @RequestParam String walletDirectory) {
+    // 지갑 생성
+    @PostMapping
+    public ResponseEntity<BaseResponse<WalletDto.Create.Response>> createWallet(
+            @RequestBody @Valid WalletDto.Create.Request request) {
+        log.info("지갑 생성 요청 - userId: {}", request.getUserId());
+        return ResponseEntity.ok(
+                BaseResponse.success(walletService.createWallet(request))
+        );
+
+    }
+
+    // 사용자의 지갑 정보 조회
+    @GetMapping("/user/{userId}")
+    public BaseResponse<WalletDto.Create.Response> getWalletByUserId(@PathVariable Long userId) {
         try {
-            String address = walletService.createWallet(password, walletDirectory);
-            Map<String, String> response = new HashMap<>();
-            response.put("address", address);
-            return ResponseEntity.ok(response);
+            log.info("Successfully returned wallet info for userId: {}", userId);
+            WalletDto.Create.Response result = walletService.getWalletByUserId(userId);
+            return BaseResponse.success(result);
+        } catch (BusinessException e) {
+            return BaseResponse.error(e.getMessage(), e.getErrorCode().toString());
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "지갑 생성 실패: " + e.getMessage()));
+            return BaseResponse.error(e.getMessage(), "INTERNAL_SERVER_ERROR");
         }
     }
 
-    /**
-     * 지갑 주소의 BNB 잔액을 조회하는 API
-     * @param address 지갑 주소
-     * @return 잔액 (BNB)
-     */
-    @GetMapping("/balance")
-    public ResponseEntity<Map<String, Object>> getWalletBalance(@RequestParam String address) {
-        try {
-            BigDecimal balance = walletService.getWalletBalance(address);
-            Map<String, Object> response = new HashMap<>();
-            response.put("address", address);
-            response.put("balance", balance);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "잔액 조회 실패: " + e.getMessage()));
-        }
+    // 특정 지갑의 상태를 변경
+    @PatchMapping("/{walletId}/status")
+    public ResponseEntity<BaseResponse<WalletDto.Create.Response>> updateWalletStatus(
+            @PathVariable Long walletId,
+            @RequestBody @Valid WalletDto.UpdateStatus.Request request) {
+        log.info("지갑 상태 변경 요청 - walletId: {}, status: {}", walletId, request.getStatus());
+        WalletDto.Create.Response response = walletService.updateWalletStatus(walletId, request);
+        return ResponseEntity.ok(BaseResponse.success(response));
     }
 
-    /**
-     * 지갑 주소를 기반으로 지갑을 삭제하는 API
-     * @param address 삭제할 지갑의 주소
-     * @return 삭제 결과
-     */
-    @DeleteMapping("/delete")
-    public ResponseEntity<Map<String, String>> deleteWallet(@RequestParam String address) {
-        boolean isDeleted = walletService.deleteWallet(address);
-        Map<String, String> response = new HashMap<>();
-
-        if (isDeleted) {
-            response.put("message", "지갑이 성공적으로 삭제되었습니다.");
-            return ResponseEntity.ok(response);
-        } else {
-            response.put("error", "지갑이 존재하지 않습니다.");
-            return ResponseEntity.status(404).body(response);
-        }
+    // 특정 지갑의 잔고를 네트워크에서 조회하여 DB에 업데이트
+    @PostMapping("/{address}/update-balance")
+    public ResponseEntity<BaseResponse<String>> updateBalance(@PathVariable String address) {
+        log.info("잔고 업데이트 요청 - address: {}", address);
+        walletService.updateBalance(address);
+        return ResponseEntity.ok(BaseResponse.success("잔고가 성공적으로 업데이트되었습니다."));
     }
 
-    /**
-     * JWT 토큰을 통해 투자자의 지갑 주소 조회
-     */
-    @GetMapping("/address")
-    public ResponseEntity<String> getWalletAddress(@RequestHeader("Authorization") String token) {
-        // Bearer 토큰에서 JWT 추출
-        String jwtToken = token.replace("Bearer ", "");
-
-        // WalletService를 통해 지갑 주소 조회
-        Optional<String> walletAddress = walletService.getWalletAddress(jwtToken);
-
-        // 결과에 따라 응답 반환
-        return walletAddress
-            .map(address -> ResponseEntity.ok().body(address))
-            .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid JWT token or wallet address not found"));
+    // 특정 지갑의 잔고 조회(DB 조회 O, 실제 네트워크 X )
+    @GetMapping("/users/{userId}/balance")
+    public ResponseEntity<BaseResponse<WalletDto.Balance.Response>> getWalletBalanceByUserId(
+            @PathVariable Long userId) {
+        log.info("지갑 정보 조회 - userId: {}", userId);
+        return ResponseEntity.ok(
+                BaseResponse.success(walletService.getWalletBalanceByUserId(userId))
+        );
     }
 
+    // PG사 결제 완료 웹훅
+    @PostMapping("/payment/callback")
+    public ResponseEntity<BaseResponse<TransactionDto.Response>> handlePaymentCallback(
+            @RequestBody PaymentDto.Callback.Request request) {
+        log.info("결제 완료 웹훅 수신 - 주문번호: {}", request.getTransactionId());
+
+        PaymentDto.CompletedEvent event = PaymentDto.CompletedEvent.from(request);
+
+        TransactionDto.Response result = tokenService.mintTokenFromPayment(event);
+        return ResponseEntity.ok(
+                BaseResponse.success(result)
+        );
+    }
+
+    // TODO: 네트워크 상에 반영
+    // 관리자 지갑으로 토큰 전송
+    @PostMapping("/transmission/admin")
+    public ResponseEntity<BaseResponse<TransactionDto.Response>> transmit(
+            @RequestBody @Valid TransactionDto.Request request
+    ) {
+        log.info("환급 요청 - userId: {}, amount: {}",
+                    request.getUserId(), request.getAmount());
+
+        return ResponseEntity.ok(
+                BaseResponse.success(
+                        tokenService.transferToAdmin(request)
+                )
+        );
+    }
 }
 

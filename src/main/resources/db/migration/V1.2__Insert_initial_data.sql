@@ -1,0 +1,17 @@
+INSERT INTO public.wallet (wallet_id,created_at,updated_at,address,balance,keystore_filename,status,user_id) VALUES
+	 (1,'2024-11-14 14:36:23.005934','2024-11-14 14:39:19.390612','0x823e970ace029c933e7962b2ae3f888a48886825',0.00,'UTC--2024-11-14T05-36-22.473848000Z--823e970ace029c933e7962b2ae3f888a48886825.json','ACTIVE',2),
+	 (2,'2024-11-15 15:55:01.130207','2024-11-15 15:55:01.130207','0x49c79a6550deed8bb1c537327e645402dc19687f',0.00,'UTC--2024-11-15T06-55-00.601450000Z--49c79a6550deed8bb1c537327e645402dc19687f.json','ACTIVE',3),
+	 (3,'2024-11-19 14:15:18.090832','2024-11-19 14:15:18.090832','0x5971e2034dda0e47f175815fe78f91054453f8ed',0.00,'UTC--2024-11-19T05-15-17.456216000Z--5971e2034dda0e47f175815fe78f91054453f8ed.json','ACTIVE',55),
+	 (5,'2024-11-21 18:02:13.972983','2024-11-21 18:06:16.690496','0x9bd081ec89837d7a663393ef876f31adfffdbb24',0.00,'UTC--2024-11-21T09-02-13.378947000Z--9bd081ec89837d7a663393ef876f31adfffdbb24.json','ACTIVE',67),
+	 (4,'2024-11-19 14:25:21.176127','2024-11-21 18:18:59.536371','0x16e8ae731d573242c0ff8bf04f80fee1e809ae0d',0.00,'UTC--2024-11-19T05-25-20.586848000Z--16e8ae731d573242c0ff8bf04f80fee1e809ae0d.json','ACTIVE',60),
+	 (6,'2024-11-22 12:32:17.662269','2024-11-22 12:32:17.662269','0xf019f5d7948c9af927560a60ad4eb4b4739aff9d',0.00,'UTC--2024-11-22T03-32-17.47022000Z--f019f5d7948c9af927560a60ad4eb4b4739aff9d.json','ACTIVE',68);
+
+INSERT INTO public.tokentransaction
+    (user_id, order_id, wallet_address, amount, token_amount, transaction_hash, status, type, completed_at, failure_reason, created_at)
+VALUES
+    (2, '98', '0x823e970ace029c933e7962b2ae3f888a48886825', 4000.00, 40.00, NULL, 'FAILED', 'MINT', NULL, 'Transaction 0xe257747f731ce7e2ba05e7a1bbdd09d0ca5dc065fe0fdc5e54c333fdca1b6ba4 has failed with status: 0x0. Gas used: 27580. Revert reason: ''execution reverted: Payment already processed''.', '2024-11-18 17:09:16.954541'),
+    (2, '12345', '0x823e970ace029c933e7962b2ae3f888a48886825', 4000.00, 40.00, NULL, 'FAILED', 'MINT', NULL, 'Transaction 0x0efbe3440fb231509b454130e0b24edea3f5bfc4482677a9bbb8f77fbb470010 has failed with status: 0x0. Gas used: 27580. Revert reason: ''execution reverted: Payment already processed''.', '2024-11-18 17:09:50.804091'),
+    (2, '1234', '0x823e970ace029c933e7962b2ae3f888a48886825', 4000.00, 40.00, '0x26e89d047b888ee5879bcc1677122b7c4483a34961b09a3ccc78a881a0200a13', 'COMPLETED', 'MINT', '2024-11-18 17:10:55.934676', NULL, '2024-11-18 17:10:40.29658'),
+    (60, '4', '0x16e8ae731d573242c0ff8bf04f80fee1e809ae0d', 350000.00, 3500.00, NULL, 'FAILED', 'MINT', NULL, 'Transaction 0x96d3fd8723026f52a6bd97f2ced0d6de9e52c6c41ee4d04259be727e7656614d has failed with status: 0x0. Gas used: 27532. Revert reason: ''execution reverted: Payment already processed''.', '2024-11-20 15:07:30.604271'),
+    (67, '87', '0x9bd081ec89837d7a663393ef876f31adfffdbb24', 37000.00, 370.00, '0x5de391ec168dba5010a1aef3c8782296c509a8fbe9289e6edd5127ae8476694c', 'COMPLETED', 'MINT', '2024-11-21 18:07:35.956394', NULL, '2024-11-21 18:07:20.655172'),
+    (68, '8', '0xf019f5d7948c9af927560a60ad4eb4b4739aff9d', 80000.00, 800.00, '0x0ac3535135cf28848f85e56c1af31364d1f5be40f0520a5db03168f81c925a3e', 'COMPLETED', 'MINT', '2024-11-22 12:35:05.784874', NULL, '2024-11-22 12:34:50.506731');

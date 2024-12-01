@@ -1,13 +1,5 @@
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
-    driver-class-name: org.postgresql.Driver
   jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -17,6 +9,20 @@ bsc:
   network:
     url: https://data-seed-prebsc-1-s1.binance.org:8545/
 
+wallet:
+  keystore:
+    directory: ${user.home}/keystore
 
-jwt:
-  secret: "aP9nZ7yQ1pK4xM6lT2vR5wU8dE1jF3rG"  # ??? ??? ?? ?
+contract:
+  token:
+    address: ${CONTRACT_TOKEN_ADDRESS}
+  funding:
+    address: ${CONTRACT_FUNDING_ADDRESS}
+  admin:
+    private-key: ${CONTRACT_ADMIN_PRIVATEKEY}
+
+service:
+  user:
+    url: http://192.168.0.143:32450/user
+  coin:
+    url: http://192.168.0.143:32450/coin
