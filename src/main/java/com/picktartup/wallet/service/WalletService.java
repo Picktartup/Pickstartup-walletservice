@@ -168,13 +168,13 @@ public class WalletService {
 
     // 잔고 업데이트 (네트워크에서 최신 잔고 조회 후 DB에 저장)
     @Transactional
-    public void updateBalance(String address) {
+    public void updateBalance(Long userId) {
         try {
-            BigInteger balance = getTokenBalance(address);
-            log.info("Raw balance from blockchain: {}", balance);
-
-            Wallet wallet = walletRepository.findByAddress(address)
+            Wallet wallet = walletRepository.findByUserId(userId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
+
+            BigInteger balance = getTokenBalance(wallet.getAddress());
+            log.info("Raw balance from blockchain: {}", balance);
 
             // Wei를 Ether로 변환 (10^18로 나누기)
             BigDecimal balanceInEther = new BigDecimal(balance)
