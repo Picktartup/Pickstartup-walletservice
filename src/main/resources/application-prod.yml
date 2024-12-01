@@ -30,3 +30,19 @@ spring:
 bsc:
   network:
     url: https://data-seed-prebsc-1-s1.binance.org:8545/ #메인넷으로 교체
+
+wallet:
+  keystore:
+    directory: ${user.home}/keystore
+contract:
+  token:
+    address: ${CONTRACT_TOKEN_ADDRESS}
+  funding:
+    address: ${CONTRACT_FUNDING_ADDRESS}
+  admin:
+    private-key: ${CONTRACT_ADMIN_PRIVATEKEY}
+service:
+  user:
+    url: http://192.168.0.143:32450/user
+  coin:
+    url: http://192.168.0.143:32450/coin
