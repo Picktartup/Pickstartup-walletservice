@@ -33,7 +33,7 @@ bsc:
 
 wallet:
   keystore:
-    directory: ${user.home}/keystore
+    directory: /app/keystore
   admin: ${WALLET_ADMIN}
 
 contract:
