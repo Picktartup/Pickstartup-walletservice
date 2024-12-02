@@ -51,7 +51,7 @@ public class UserServiceClient {
     public void validateAdminUser(Long userId) {
         try {
             BaseResponse<UserDto.ValidationAdminResponse> response = userServiceWebClient.get()
-                    .uri("/api/v1/users/auth/" + userId + "/validation")
+                    .uri("/api/v1/users/public/" + userId + "/validation")
                     .retrieve()
                     .onStatus(status -> status.is4xxClientError(), clientResponse -> {
                         if (clientResponse.statusCode() == HttpStatus.NOT_FOUND) {
