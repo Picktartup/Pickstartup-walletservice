@@ -71,10 +71,10 @@ public class WalletController {
     }
 
     // 특정 지갑의 잔고를 네트워크에서 조회하여 DB에 업데이트
-    @PostMapping("/{address}/update-balance")
-    public ResponseEntity<BaseResponse<String>> updateBalance(@PathVariable String address) {
-        log.info("잔고 업데이트 요청 - address: {}", address);
-        walletService.updateBalance(address);
+    @PostMapping("/{userId}/update-balance")
+    public ResponseEntity<BaseResponse<String>> updateBalance(@PathVariable Long userId) {
+        log.info("잔고 업데이트 요청 - userId: {}", userId);
+        walletService.updateBalance(userId);
         return ResponseEntity.ok(BaseResponse.success("잔고가 성공적으로 업데이트되었습니다."));
     }
 
@@ -102,7 +102,7 @@ public class WalletController {
         );
     }
 
-    // TODO: 네트워크 상에 반영
+    // TODOa: 네트워크 상에 반영
     // 관리자 지갑으로 토큰 전송
     @PostMapping("/transmission/admin")
     public ResponseEntity<BaseResponse<TransactionDto.Response>> transmit(
