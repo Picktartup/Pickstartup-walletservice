@@ -33,7 +33,7 @@ public class WalletLoggingAspect {
         logData.put("service_name", serviceName); // 서비스 이름 추가
         logData.putAll(additionalFields);
 
-        log.info("{}", logData);
+        log.info("{}", logData); // JSON 형태로 기록
     }
 
     /**
@@ -41,7 +41,6 @@ public class WalletLoggingAspect {
      */
     @Around("execution(* com.picktartup.wallet.service.TokenService.mintTokenFromPayment(..))")
     public Object monitorPayment(ProceedingJoinPoint joinPoint) throws Throwable {
-        LocalDateTime requestTime = LocalDateTime.now();
         Object[] args = joinPoint.getArgs();
         PaymentDto.CompletedEvent payment = (PaymentDto.CompletedEvent) args[0];
 
@@ -51,8 +50,7 @@ public class WalletLoggingAspect {
             logBusinessAction("payment_completed", Map.of(
                     "amount", payment.getAmount(),
                     "transaction_id", payment.getTransactionId(),
-                    "status", "success",
-                    "timestamp", requestTime
+                    "status", "success"
             ));
 
             return result;
@@ -72,7 +70,6 @@ public class WalletLoggingAspect {
      */
     @Around("execution(* com.picktartup.wallet.service.WalletService.getWalletBalanceByUserId(..))")
     public Object monitorBalanceCheck(ProceedingJoinPoint joinPoint) throws Throwable {
-        LocalDateTime checkTime = LocalDateTime.now();
         Object[] args = joinPoint.getArgs();
         Long userId = (Long) args[0];
 
@@ -81,8 +78,7 @@ public class WalletLoggingAspect {
 
             logBusinessAction("check_wallet_balance", Map.of(
                     "user_id", userId,
-                    "status", "success",
-                    "timestamp", checkTime
+                    "status", "success"
             ));
 
             return result;
@@ -94,14 +90,15 @@ public class WalletLoggingAspect {
             ));
             throw e;
         }
+
     }
+
 
     /**
      * 송금 패턴 모니터링
      */
     @Around("execution(* com.picktartup.wallet.service.TokenService.transferToAdmin(..))")
     public Object monitorTransfer(ProceedingJoinPoint joinPoint) throws Throwable {
-        LocalDateTime transferTime = LocalDateTime.now();
         Object[] args = joinPoint.getArgs();
         TransactionDto.Request request = (TransactionDto.Request) args[0];
 
@@ -111,8 +108,7 @@ public class WalletLoggingAspect {
             logBusinessAction("transfer_to_admin", Map.of(
                     "user_id", request.getUserId(),
                     "amount", request.getAmount(),
-                    "status", "success",
-                    "timestamp", transferTime
+                    "status", "success"
             ));
 
             return result;
@@ -132,7 +128,6 @@ public class WalletLoggingAspect {
      */
     @Around("execution(* com.picktartup.wallet.service.WalletService.updateWalletStatus(..))")
     public Object monitorWalletStatus(ProceedingJoinPoint joinPoint) throws Throwable {
-        LocalDateTime updateTime = LocalDateTime.now();
         Object[] args = joinPoint.getArgs();
         Long walletId = (Long) args[0];
         WalletDto.UpdateStatus.Request request = (WalletDto.UpdateStatus.Request) args[1];
@@ -143,8 +138,7 @@ public class WalletLoggingAspect {
             logBusinessAction("update_wallet_status", Map.of(
                     "wallet_id", walletId,
                     "new_status", request.getStatus(),
-                    "status", "success",
-                    "timestamp", updateTime
+                    "status", "success"
             ));
 
             return result;
@@ -164,7 +158,6 @@ public class WalletLoggingAspect {
      */
     @Around("execution(* com.picktartup.wallet.service.WalletService.updateBalance(..))")
     public Object monitorBalanceUpdate(ProceedingJoinPoint joinPoint) throws Throwable {
-        LocalDateTime updateTime = LocalDateTime.now();
         Object[] args = joinPoint.getArgs();
         Long userId = (Long) args[0];
 
@@ -173,8 +166,7 @@ public class WalletLoggingAspect {
 
             logBusinessAction("update_wallet_balance", Map.of(
                     "user_id", userId,
-                    "status", "success",
-                    "timestamp", updateTime
+                    "status", "success"
             ));
 
             return result;
