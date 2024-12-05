@@ -3,16 +3,24 @@ package com.picktartup.wallet.aop;
 import com.picktartup.wallet.dto.PaymentDto;
 import com.picktartup.wallet.dto.TransactionDto;
 import com.picktartup.wallet.dto.WalletDto;
+import com.picktartup.wallet.entity.TokenTransaction;
+import com.picktartup.wallet.utils.TokenUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Aspect
@@ -25,158 +33,181 @@ public class WalletLoggingAspect {
     /**
      * 공통 로그 기록 메서드
      */
-    private void logBusinessAction(String action, Map<String, Object> additionalFields) {
-        Map<String, Object> logData = new HashMap<>();
-        logData.put("log_type", "business");
-        logData.put("action", action);
-        logData.put("timestamp", LocalDateTime.now().toString());
-        logData.put("service_name", serviceName); // 서비스 이름 추가
-        logData.putAll(additionalFields);
-
-        log.info("{}", logData); // JSON 형태로 기록
+    private void logApiCall(Map<String, Object> logData, boolean success, int httpStatus, long responseTime, String errorMessage) {
+        logData.put("status", success ? "success" : "failed");
+        logData.put("http_status", httpStatus);
+        logData.put("response_time_ms", responseTime);
+        if (errorMessage != null) {
+            logData.put("error_message", errorMessage);
+        }
+        log.info("{}", logData);
     }
 
     /**
-     * 결제 웹훅 모니터링
+     * 공통 API 호출 로그
+     */
+    @Around("execution(* com.picktartup.wallet.controller.*.*(..))")
+    public Object logAllApiCalls(ProceedingJoinPoint joinPoint) throws Throwable {
+        long startTime = System.currentTimeMillis();
+        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+
+        Map<String, Object> logData = new HashMap<>();
+        logData.put("http_method", request.getMethod());
+        logData.put("uri", request.getRequestURI());
+        logData.put("api_path", request.getRequestURI().replaceAll("/\\d+", "/{id}"));
+        logData.put("api_name", ((MethodSignature) joinPoint.getSignature()).getMethod().getName());
+        logData.put("client_ip", request.getRemoteAddr());
+        logData.put("request_id", UUID.randomUUID().toString());
+        logData.put("timestamp", LocalDateTime.now().toString());
+        logData.put("service_name", serviceName);
+
+        try {
+            Object result = joinPoint.proceed();
+            long responseTime = System.currentTimeMillis() - startTime;
+
+            // 성공 로그
+            int httpStatus = (result instanceof ResponseEntity) ?
+                    ((ResponseEntity<?>) result).getStatusCodeValue() : 200;
+            logApiCall(logData, true, httpStatus, responseTime, null);
+
+            return result;
+        } catch (Exception e) {
+            long responseTime = System.currentTimeMillis() - startTime;
+
+            // 실패 로그
+            logApiCall(logData, false, 500, responseTime, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * 결제 웹훅 로직 (토큰화 금액 포함)
      */
     @Around("execution(* com.picktartup.wallet.service.TokenService.mintTokenFromPayment(..))")
     public Object monitorPayment(ProceedingJoinPoint joinPoint) throws Throwable {
         Object[] args = joinPoint.getArgs();
         PaymentDto.CompletedEvent payment = (PaymentDto.CompletedEvent) args[0];
 
+        Map<String, Object> logData = new HashMap<>();
+        logData.put("log_type", "business");
+        logData.put("action", "payment_completed");
+        logData.put("amount", payment.getAmount()); // 결제 금액
+        logData.put("transaction_id", payment.getTransactionId()); // 주문번호
+        logData.put("service_name", serviceName);
+        logData.put("timestamp", LocalDateTime.now().toString());
+
+        // 서비스에서 전달된 토큰화 금액 사용
         try {
             Object result = joinPoint.proceed();
 
-            logBusinessAction("payment_completed", Map.of(
-                    "amount", payment.getAmount(),
-                    "transaction_id", payment.getTransactionId(),
-                    "status", "success"
-            ));
-
+            // 성공 로그
+            if (result instanceof TokenTransaction) {
+                TokenTransaction transaction = (TokenTransaction) result;
+                logData.put("tokenized_amount", transaction.getTokenAmount()); // 토큰화 금액
+                logData.put("tokenized_amount_wei", TokenUtils.toWei(transaction.getTokenAmount().doubleValue())); // Wei 변환
+            }
+            logApiCall(logData, true, 200, 0, null); // 성공 시 HTTP 200
             return result;
         } catch (Exception e) {
-            logBusinessAction("payment_failed", Map.of(
-                    "amount", payment.getAmount(),
-                    "transaction_id", payment.getTransactionId(),
-                    "status", "failed",
-                    "error_message", e.getMessage()
-            ));
+            logApiCall(logData, false, 500, 0, e.getMessage()); // 실패 시 HTTP 500
             throw e;
         }
     }
 
+
     /**
-     * 지갑 잔고 조회 모니터링
+     * 잔고 조회 로직
      */
     @Around("execution(* com.picktartup.wallet.service.WalletService.getWalletBalanceByUserId(..))")
     public Object monitorBalanceCheck(ProceedingJoinPoint joinPoint) throws Throwable {
         Object[] args = joinPoint.getArgs();
         Long userId = (Long) args[0];
+        long startTime = System.currentTimeMillis();
+
+        Map<String, Object> logData = new HashMap<>();
+        logData.put("log_type", "business");
+        logData.put("action", "check_wallet_balance");
+        logData.put("user_id", userId);
+        logData.put("timestamp", LocalDateTime.now().toString());
+        logData.put("service_name", serviceName);
 
         try {
             Object result = joinPoint.proceed();
+            long responseTime = System.currentTimeMillis() - startTime;
 
-            logBusinessAction("check_wallet_balance", Map.of(
-                    "user_id", userId,
-                    "status", "success"
-            ));
-
+            // 성공 로그
+            logApiCall(logData, true, 200, responseTime, null);
             return result;
         } catch (Exception e) {
-            logBusinessAction("check_wallet_balance_failed", Map.of(
-                    "user_id", userId,
-                    "status", "failed",
-                    "error_message", e.getMessage()
-            ));
-            throw e;
-        }
+            long responseTime = System.currentTimeMillis() - startTime;
 
-    }
-
-
-    /**
-     * 송금 패턴 모니터링
-     */
-    @Around("execution(* com.picktartup.wallet.service.TokenService.transferToAdmin(..))")
-    public Object monitorTransfer(ProceedingJoinPoint joinPoint) throws Throwable {
-        Object[] args = joinPoint.getArgs();
-        TransactionDto.Request request = (TransactionDto.Request) args[0];
-
-        try {
-            Object result = joinPoint.proceed();
-
-            logBusinessAction("transfer_to_admin", Map.of(
-                    "user_id", request.getUserId(),
-                    "amount", request.getAmount(),
-                    "status", "success"
-            ));
-
-            return result;
-        } catch (Exception e) {
-            logBusinessAction("transfer_to_admin_failed", Map.of(
-                    "user_id", request.getUserId(),
-                    "amount", request.getAmount(),
-                    "status", "failed",
-                    "error_message", e.getMessage()
-            ));
+            // 실패 로그
+            logApiCall(logData, false, 500, responseTime, e.getMessage());
             throw e;
         }
     }
 
     /**
-     * 지갑 상태 변경 모니터링
-     */
-    @Around("execution(* com.picktartup.wallet.service.WalletService.updateWalletStatus(..))")
-    public Object monitorWalletStatus(ProceedingJoinPoint joinPoint) throws Throwable {
-        Object[] args = joinPoint.getArgs();
-        Long walletId = (Long) args[0];
-        WalletDto.UpdateStatus.Request request = (WalletDto.UpdateStatus.Request) args[1];
-
-        try {
-            Object result = joinPoint.proceed();
-
-            logBusinessAction("update_wallet_status", Map.of(
-                    "wallet_id", walletId,
-                    "new_status", request.getStatus(),
-                    "status", "success"
-            ));
-
-            return result;
-        } catch (Exception e) {
-            logBusinessAction("update_wallet_status_failed", Map.of(
-                    "wallet_id", walletId,
-                    "new_status", request.getStatus(),
-                    "status", "failed",
-                    "error_message", e.getMessage()
-            ));
-            throw e;
-        }
-    }
-
-    /**
-     * 잔고 업데이트 모니터링
+     * 잔고 업데이트 로직
      */
     @Around("execution(* com.picktartup.wallet.service.WalletService.updateBalance(..))")
     public Object monitorBalanceUpdate(ProceedingJoinPoint joinPoint) throws Throwable {
         Object[] args = joinPoint.getArgs();
         Long userId = (Long) args[0];
+        long startTime = System.currentTimeMillis();
+
+        Map<String, Object> logData = new HashMap<>();
+        logData.put("log_type", "business");
+        logData.put("action", "update_wallet_balance");
+        logData.put("user_id", userId);
+        logData.put("timestamp", LocalDateTime.now().toString());
+        logData.put("service_name", serviceName);
+
+        try {
+            Object result = joinPoint.proceed();
+            long responseTime = System.currentTimeMillis() - startTime;
+
+            // 성공 로그
+            logApiCall(logData, true, 200, responseTime, null);
+            return result;
+        } catch (Exception e) {
+            long responseTime = System.currentTimeMillis() - startTime;
+
+            // 실패 로그
+            logApiCall(logData, false, 500, responseTime, e.getMessage());
+            throw e;
+        }
+    }
+    @Around("execution(* com.picktartup.wallet.service.TokenService.transferToAdmin(..))")
+    public Object monitorTokenRefund(ProceedingJoinPoint joinPoint) throws Throwable {
+        Object[] args = joinPoint.getArgs();
+        TransactionDto.Request request = (TransactionDto.Request) args[0];
+
+        Map<String, Object> logData = new HashMap<>();
+        logData.put("log_type", "business");
+        logData.put("action", "token_refund");
+        logData.put("user_id", request.getUserId());
+        logData.put("transaction_id", request.getTransactionId());
+        logData.put("requested_token_amount", request.getAmount());
+        logData.put("timestamp", LocalDateTime.now().toString());
+        logData.put("service_name", serviceName);
 
         try {
             Object result = joinPoint.proceed();
 
-            logBusinessAction("update_wallet_balance", Map.of(
-                    "user_id", userId,
-                    "status", "success"
-            ));
+            if (result instanceof TransactionDto.Response) {
+                TransactionDto.Response response = (TransactionDto.Response) result;
+                logData.put("status", "success");
+                logData.put("refunded_cash_amount", response.getAmount());
+                logData.put("transaction_hash", response.getTransactionHash());
+            }
 
+            logApiCall(logData, true, 200, 0, null);
             return result;
         } catch (Exception e) {
-            logBusinessAction("update_wallet_balance_failed", Map.of(
-                    "user_id", userId,
-                    "status", "failed",
-                    "error_message", e.getMessage()
-            ));
+            logApiCall(logData, false, 500, 0, e.getMessage());
             throw e;
         }
     }
+
 }
