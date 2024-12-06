@@ -37,9 +37,6 @@ import com.picktartup.wallet.contracts.PickenToken;
 @RequiredArgsConstructor
 public class TokenService {
 
-    @Value("${wallet.admin}")
-    private String adminAddress;
-
     private final Web3j web3j;
     private final WalletRepository walletRepository;
     private final TokenTransactionRepository tokenTransactionRepository;

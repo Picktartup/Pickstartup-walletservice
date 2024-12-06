@@ -9,6 +9,17 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ErrorCode {
 
+    // File Related Errors
+    FILE_UPLOAD_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "F001", "파일 업로드 중 오류가 발생했습니다."),
+    FILE_DOWNLOAD_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "F002", "파일 다운로드 중 오류가 발생했습니다."),
+    FILE_DELETE_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "F003", "파일 삭제 중 오류가 발생했습니다."),
+    FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "F004", "파일을 찾을 수 없습니다."),
+
+    // AWS S3 Related Errors
+    S3_CONNECTION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "S001", "S3 연결 중 오류가 발생했습니다."),
+    S3_BUCKET_NOT_FOUND(HttpStatus.NOT_FOUND, "S002", "S3 버킷을 찾을 수 없습니다."),
+    S3_ACCESS_DENIED(HttpStatus.FORBIDDEN, "S003", "S3 접근이 거부되었습니다."),
+
     // Keystore
     KEYSTORE_FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "K001", "Keystore 파일을 찾을 수 없습니다."),
     KEYSTORE_READ_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "K002", "Keystore 파일을 읽을 수 없습니다."),

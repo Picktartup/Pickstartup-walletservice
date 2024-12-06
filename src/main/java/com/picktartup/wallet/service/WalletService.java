@@ -48,6 +48,7 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final String tokenContractAddress;
     private final String keystoreDirectory;
+    private final S3Service s3Service;
     private final UserServiceClient userServiceClient;
 
     @PostConstruct
@@ -82,6 +83,10 @@ public class WalletService {
                     password, // 이 비밀번호로 키스토어 파일 암호화
                     new File(keystoreDirectory)
             );
+
+            // S3에 업로드
+            String filePath = keystoreDirectory + File.separator + walletFileName;
+            String s3Url = s3Service.uploadFile(filePath, walletFileName);
 
             // 4. 생성된 지갑 정보 로드
             Credentials credentials = WalletUtils.loadCredentials(
