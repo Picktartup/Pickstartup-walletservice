@@ -111,7 +111,7 @@ public class TokenService {
         userServiceClient.validateUserExists(request.getUserId());
 
         // 2. 주문 검증
-        coinServiceClient.validatePayment(request.getTransactionId(), request.getUserId(), request.getAmount());
+        // coinServiceClient.validatePayment(request.getTransactionId(), request.getUserId(), request.getAmount());
 
         // 3. 사용자 지갑 조회
         Wallet userWallet = walletRepository.findByUserId(request.getUserId())
