@@ -43,8 +43,3 @@ contract:
     address: ${CONTRACT_FUNDING_ADDRESS}
   admin:
     private-key: ${CONTRACT_ADMIN_PRIVATEKEY}
-service:
-  user:
-    url: http://192.168.0.143:32450/user
-  coin:
-    url: http://192.168.0.143:32450/coin

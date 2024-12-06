@@ -13,6 +13,18 @@ wallet:
   keystore:
     directory: ${user.home}/keystore
 
+cloud:
+  aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+    s3:
+      bucket: ${KEYSTORE_BUCKET}
+    region:
+      static: ap-northeast-2
+    stack:
+      auto: false
+
 contract:
   token:
     address: ${CONTRACT_TOKEN_ADDRESS}

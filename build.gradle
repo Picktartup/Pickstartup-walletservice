@@ -43,6 +43,11 @@ dependencies {
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-database-postgresql:10.6.0'
 
+	//s3
+	implementation 'com.amazonaws:aws-java-sdk-s3:1.12.621'
+	implementation 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE'
+	implementation 'commons-io:commons-io:2.15.1'
+
 	testImplementation 'org.powermock:powermock-module-junit4:2.0.9'
 	testImplementation 'org.mockito:mockito-inline:4.0.0' // 최신 버전으로 업데이트
 
